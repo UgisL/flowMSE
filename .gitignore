@@ -1,0 +1,16 @@
+# ignore generated output txt files
+**/*.txt
+# ingnore generated outpute files
+**/*.dat
+**/*.msh
+# ignore LaTeX log files
+**/*.aux
+**/*.log
+**/*.out
+**/*.gz
+# ignore snapshots
+**/*.zip
+# ignore MacOS store files
+**/.DS_Store
+# Ignore JFM specific readme
+README.JFM

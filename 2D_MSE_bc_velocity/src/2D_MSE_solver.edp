@@ -1,0 +1,284 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of MSE_bc.
+//
+// MSE_bc is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MSE_bc is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with MSE_bc. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with MSE_bc. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 2D_MSE_solver.edp" in command line (Unix) or
+// open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
+// documentation in <doc/> or documentation of FreeFem++.
+
+load "UMFPACK64"
+
+// Mesh resolution
+int n=16;
+n = 4;
+// Lagrange multipliers are constructed with twice the resolution
+int nL=2;
+
+// Scale separation parameter, solid volume fraction (setting cylinder radius) and problem name
+real epsP      = 0.10;
+real thetas    = 0.02;
+real cylr      = sqrt(thetas/pi);
+string caseFix = "test";
+// Defining the lid velocity
+real Udrv      =  100.0;
+
+// Defining field sampling parameters
+real xslice    = -1.0;
+int  Nsamp     = 240;   // Sampling rate of vertical distance unit length
+
+// Definition of interface coordinate and bc matrices (assuming y=0 at the tip of the last cylinder)
+real yif = 0.1;
+// Interior permeability
+real Kdrc= 0.0925538;
+
+// Interface cell results, permeability
+real[int,int] ifKij = [ [0.0311839, 0.0      ],
+                        [0.0,       0.0925538] ];
+// Slip length
+real[int,int] ifL1kl= [ [0.0,       0.1669320],
+                        [0.0,       0.0      ] ];
+real[int,int] ifL2kl= [ [0.0,       0.0      ],
+                        [0.0,       0.0      ] ];
+
+
+
+// Set channel extent
+real ymax =  0.5 - cylr + 1.0/epsP;
+real ymin = -7.5 - cylr;
+real xmin = -5.0;
+real xmax =  5.0;
+
+// Define geometry, channel borders, free fluid
+border sqr1(t=yif, ymax) {x=xmax; y=t;    label=1; }
+border sqr2(t=xmax,xmin) {x=t;    y=ymax; label=2; }
+border sqr3(t=ymax,yif ) {x=xmin; y=t;    label=3; }
+border sqr4(t=xmin,xmax) {x=t;    y=yif;  label=4; }
+// Channel borders, porous medium
+border sqr1p(t=ymin, yif) {x=xmax; y=t;    label=1; }
+border sqr2p(t=xmax,xmin) {x=t;    y=yif;  label=2; }
+border sqr3p(t=yif, ymin) {x=xmin; y=t;    label=3; }
+border sqr4p(t=xmin,xmax) {x=t;    y=ymin; label=4; }
+
+cout << "R of cylinder: " << cylr << endl; 
+
+// Macros for more convinient desciption of variational formulation
+macro epsilon(v1,v2) [dx(v1),dy(v2),(dy(v1)+dx(v2))/sqrt(2)] //
+macro div(v1,v2) ( dx(v1)+dy(v2) ) //
+// Macros for boundary stress components
+macro stress11() (  -p + 2*( dx(u)       )*epsP  ) //
+macro stress12() (         ( dy(u)+dx(v) )*epsP  ) //
+macro stress22() (  -p + 2*( dy(v)       )*epsP  ) //
+// Macro for velocity boundary condition ubcF, vbcF -- evaluated at free fluid side, vbcP - evaruated at porous side
+macro ubcF() ( -(ifKij(0,0)*dx(p)+ifKij(0,1)*dy(p))/epsP + (ifL1kl(0,0)*stress11+(ifL1kl(0,1)+ifL1kl(1,0))*stress12+ifL1kl(1,1)*stress22)/epsP ) //
+macro vbcF() (                                             (ifL2kl(0,0)*stress11+(ifL2kl(0,1)+ifL2kl(1,0))*stress12+ifL2kl(1,1)*stress22)/epsP ) //
+macro vbcP() ( -(ifKij(1,0)*dx(p)+ifKij(1,1)*dy(p))/epsP                                                                                       ) //
+
+// Generate meshes
+mesh ThT=buildmesh( sqr1 (   n*(ymax-yif))+sqr2 (   n*(xmax-xmin))
+                   +sqr3 (   n*(ymax-yif))+sqr4 (   n*(xmax-xmin)) );
+mesh ThL=buildmesh( sqr1 (nL*n*(ymax-yif))+sqr2 (nL*n*(xmax-xmin))
+                   +sqr3 (nL*n*(ymax-yif))+sqr4 (nL*n*(xmax-xmin)) );
+ThL=emptymesh(ThL);
+mesh ThB=buildmesh( sqr1p(   n*(yif-ymin))+sqr2p(   n*(xmax-xmin))
+                   +sqr3p(   n*(yif-ymin))+sqr4p(   n*(xmax-xmin))  );
+
+plot(ThT,ThB);
+
+// Define FE spaces
+fespace UUPhT(ThT,[P2,P2,P1]);
+fespace UUPhL(ThL,[P1]);
+fespace   PhB(ThB,[P2]);
+
+// Define the variational formulations, fluid part
+varf lapT ([u,v,p],[uu,vv,pp]) = int2d(ThT)    ( p*div(uu,vv)-2*epsP*epsilon(u,v)'*epsilon(uu,vv)                           // ( Dummy's comment)
+                                               +pp*div(u ,v ) - 1e-10*p*pp ) + on(1,3,u=0,v=0) + on(2,u=Udrv,v=0);
+
+// Stresses at the interface are unknown, because b.c. enforced using Lagrange multipliers
+varf strTi([u,v,p],[uu,vv,pp]) = int1d(ThT,4)( ((  -p + 2*( dx(u)       )*epsP  )*N.x + (         ( dy(u)+dx(v) )*epsP  )*N.y)*uu
+                                              +((         ( dy(u)+dx(v) )*epsP  )*N.x + (  -p + 2*( dy(v)       )*epsP  )*N.y)*vv );
+
+// Interpolation from fluid space to Lagrange space, velocities
+varf intpIntfUf ([u,v,p],[bb]) = int1d(ThL,4)(  u   *bb );
+varf intpIntfUfn([u,v,p],[bb]) = int1d(ThL,4)( -ubcF*bb );
+varf intpIntfVf ([u,v,p],[bb]) = int1d(ThL,4)(  v   *bb );
+varf intpIntfVfn([u,v,p],[bb]) = int1d(ThL,4)( -vbcF*bb );
+// Forcing terms in Stokes equations to force velocity components
+// according to values of obtained Lagrange multipliers
+varf intpIntfUft([b],[uu,vv,pp]) = int1d(ThT,4)( b*uu );
+varf intpIntfVft([b],[uu,vv,pp]) = int1d(ThT,4)( b*vv );
+// Interpolating the pressure
+varf intpIntfPf ([u,v,p],[bb])   = int1d(ThL,4)(   p *bb );
+// Penalty for unused sides
+varf intppenS4  ([b],[bb])     = int1d(ThL,1,2,3)( -1e-10*b*bb );
+
+// Define variational formulations, porous part
+varf lapB ([p],[pp]) = int2d(ThB)  ( -dx(p)*dx(pp) - dy(p)*dy(pp) );
+varf strBi([p],[pp]) = int1d(ThB,2)( (dx(p)*N.x    + dy(p)*N.y)*pp );
+// Natural b.c. at other sides are zero - no normal velocity
+// Lagrange multiplier to impose pressure continuity
+varf intpIntfPp ([p],[bb]) = int1d(ThL,4)(   -p *bb );
+// Lagrange multiplier to set normal vel. b.c.
+varf intpIntfVpn([p],[bb]) = int1d(ThL,4)( -vbcP*bb );
+
+// Construct the linear system
+matrix CoupSYSup;
+{
+    // Fluid part
+    matrix LT = lapT(UUPhT,UUPhT); matrix LTs = strTi(UUPhT,UUPhT);
+    LT+LTs;
+    matrix B1 = intpIntfUf (UUPhT,UUPhL); matrix B1n = intpIntfUfn(UUPhT,UUPhL);
+    matrix B2 = intpIntfVf (UUPhT,UUPhL); matrix B2n = intpIntfVfn(UUPhT,UUPhL);
+    B1=B1+B1n;
+    B2=B2+B2n;
+    matrix B3 = intpIntfPf (UUPhT,UUPhL);
+    // Porous part
+    matrix LB = lapB(PhB,PhB);          matrix LBs = strBi(PhB,PhB);
+    LB=LB+LBs;
+    matrix B2p= intpIntfVpn(PhB,UUPhL);
+    matrix B4 = intpIntfPp (PhB,UUPhL);
+    // Lagrange multipliers, penalty, feedback to free fluid
+    matrix BP4= intppenS4(UUPhL,UUPhL);
+    matrix B1t= intpIntfUft(UUPhL,UUPhT); matrix B2t = intpIntfVft(UUPhL,UUPhT);    
+    // Assemble the main matrix
+    CoupSYSup = [ [ LT, 0,    B1t,  B2t, 0   ], // [ Dummy's ] 
+                  [ 0,  LB,   0,    0,   B4' ], // [ Dummy's ]
+                  [ B1, 0,    BP4,  0,   0   ],
+                  [ B2, B2p,  0,    BP4, 0   ],
+                  [ B3, B4,   0,    0,   BP4 ] ];
+}
+// Construct the right hand side vector
+real[int] RHSup(UUPhT.ndof+PhB.ndof+3*UUPhL.ndof);
+{
+    RHSup(0:UUPhT.ndof+PhB.ndof+3*UUPhL.ndof-1) = 0;
+    // Dirichlet boundary conditions
+    RHSup(0:UUPhT.ndof-1)            = lapT(0,UUPhT);
+}
+// Choose the direct solver, solve the system
+set(CoupSYSup, solver=sparsesolver);
+real[int] SOLup = CoupSYSup^-1*RHSup;
+
+UUPhT [u,v,p];
+  PhB pb;
+// Extract results
+u[] = SOLup(0:UUPhT.ndof-1);
+v[] = SOLup(0:UUPhT.ndof-1);
+p[] = SOLup(0:UUPhT.ndof-1);
+pb[]= SOLup(UUPhT.ndof:UUPhT.ndof+PhB.ndof-1);
+
+// Save results
+savemesh(ThT,"2D_MSE_solver_resultsT_"+caseFix+".msh");
+savemesh(ThB,"2D_MSE_solver_resultsB_"+caseFix+".msh");
+{
+    ofstream resfileT("2D_MSE_solver_resultsT_"+caseFix+".dat",binary);
+    resfileT<<u[];
+    resfileT<<v[];
+    resfileT<<p[];
+    ofstream resfileB("2D_MSE_solver_resultsB_"+caseFix+".dat",binary);
+    resfileB<<pb[];
+}
+
+// Post process results, output velocity results for given x coordinate
+PhB ub, vb;
+ub = -Kdrc*dx(pb)/epsP;
+vb = -Kdrc*dy(pb)/epsP;
+
+// Shift the pressure to report meaningful results
+real pavgif = int1d(ThT,levelset=(y-yif-1e-6))( p )/(xmax-xmin);
+cout << "Obtained average pressure at interface = " << pavgif << endl;
+fespace PhT(ThT,[P1]);
+PhT psh;
+psh = p  - pavgif;
+pb  = pb - pavgif;
+
+
+// Sample a given slice, output results to text file
+Nsamp = Nsamp*(ymax-ymin);
+{
+    real ysmp;
+    ofstream resfileX("2D_MSE_solver_results_sampleSliceX_"+caseFix+".txt");
+    resfileX << "# y, u, v, p, sampled at x = " << xslice << endl;
+    for(int i=0; i<Nsamp; i++)
+    {
+        ysmp = ymin+1e-6 + i*(ymax-ymin-2e-6)/(Nsamp-1.0);
+        if(ysmp > yif) resfileX << ysmp << " " << u (xslice,ysmp) << " " << v (xslice,ysmp) << " " << psh(xslice,ysmp) << endl;
+        else           resfileX << ysmp << " " << ub(xslice,ysmp) << " " << vb(xslice,ysmp) << " " << pb (xslice,ysmp) << endl;
+    }
+}
+
+// Define the "jet" colorscheme, BUT - it is intensity incorrect (black & white prints look weird)
+real[int] colorsJET = [
+    6.666666666666666297e-01, 1.000000000000000000e+00, 8.333000000000000407e-01,
+    6.666666666666666297e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.388833333333332476e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.111166666666666414e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.833333333333332593e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.555499999999999883e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.277833333333332710e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.000000000000000000e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    4.666586663466538720e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    4.166791660416978571e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    3.333333333333333148e-01, 5.000000000000000000e-01, 1.000000000000000000e+00,
+    2.499875006249687726e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    2.000080003200127854e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    1.666666666666666574e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.388833333333333309e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.111166666666666553e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    8.333333333333332871e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.554999999999999521e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    2.778333333333333002e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 8.333000000000000407e-01
+    ];
+// Intesity-correct colorscheme
+// Define the "cubehelix" colorscheme, Green-ish (https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubetry.html)
+real[int] colorsCUBE = [
+    0.000000000000000000e+00, 0.000000000000000000e+00, 0.000000000000000000e+00,
+    6.474926253687315336e-01, 7.902097902097902082e-01, 1.429999999999999882e-01,
+    6.219336219336218941e-01, 8.587360594795538926e-01, 2.690000000000000169e-01,
+    5.993217054263565435e-01, 9.197860962566843934e-01, 3.739999999999999991e-01,
+    5.784313725490195512e-01, 9.714285714285714191e-01, 4.550000000000000155e-01,
+    5.589192708333332593e-01, 1.000000000000000000e+00, 5.120000000000000107e-01,
+    5.386029411764705621e-01, 1.000000000000000000e+00, 5.440000000000000391e-01,
+    5.150421179302044905e-01, 1.000000000000000000e+00, 5.540000000000000480e-01,
+    4.888888888888889284e-01, 1.000000000000000000e+00, 5.849999999999999645e-01,
+    4.657464212678936732e-01, 9.878787878787879118e-01, 6.600000000000000311e-01,
+    4.437840515106488692e-01, 9.257221458046767104e-01, 7.269999999999999796e-01,
+    4.223227752639516774e-01, 8.467432950191571273e-01, 7.830000000000000293e-01,
+    3.999999999999999667e-01, 7.539203860072376528e-01, 8.289999999999999591e-01,
+    3.755952380952380931e-01, 6.481481481481482509e-01, 8.639999999999999902e-01,
+    3.477192982456139836e-01, 5.337078651685394082e-01, 8.900000000000000133e-01,
+    3.155186064924782041e-01, 4.631463146314631629e-01, 9.090000000000000302e-01,
+    2.861552028218694588e-01, 4.095341278439869614e-01, 9.230000000000000426e-01,
+    2.591397849462365732e-01, 3.311965811965812412e-01, 9.360000000000000542e-01,
+    2.328767123287670826e-01, 2.305263157894736625e-01, 9.499999999999999556e-01,
+    2.050147492625369328e-01, 1.164948453608247309e-01, 9.699999999999999734e-01,
+    0.000000000000000000e+00, 0.000000000000000000e+00, 1.000000000000000000e+00
+    ];
+
+
+// Plot the obtained fields
+plot(u  ,ub,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(v  ,vb,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(psh,pb,nbiso=40,hsv=colorsJET,value=true,fill=true);

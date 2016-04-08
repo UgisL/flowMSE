@@ -1,0 +1,257 @@
+\NeedsTeXFormat{LaTeX2e}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0},
+}
+
+%\usepackage[lite,subscriptcorrection,slantedGreek,nofontinfo]{mtpro2}
+%\usepackage{microtype}
+
+\usepackage{parskip}
+%\usepackage{units}
+\usepackage{xspace}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+%\usepackage{amssymb}
+\usepackage{graphicx}
+%\usepackage{units}
+%\usepackage[section]{placeins}
+\usepackage{cite}
+\usepackage{subfigure}
+
+% Reduce margins
+\usepackage{a4wide}
+% Header style
+\pagestyle{fancy}
+\fancyfoot[L]{\today}
+\fancyfoot[C]{}
+\fancyfoot[R]{Ugis Lacis}
+\fancyhead[L]{Documentation}
+\fancyhead[C]{2D\_MSE\_bc\_velocity v1.01}
+\fancyhead[R]{Page \thepage}
+
+\usepackage{times}
+%\usepackage{mathptm}
+\usepackage{longtable}
+\usepackage{multirow}
+
+\usepackage{float}  %My added packages [UgisL]
+\usepackage{verbatim}
+\usepackage{url}
+
+% Code inclusion
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{language=C++,
+  aboveskip=3mm,
+  belowskip=3mm,
+  xleftmargin=\parindent,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\scriptsize\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+
+\newcommand{\pd}{\partial}
+\newcommand{\pdt}{\partial_t}
+
+% Package for doing IF clauses withing newcommand
+\usepackage{xstring}
+% Commands for strain and ordering parameters
+\newcommand{\str}[3]{\varepsilon^{#1}_{#2} \left( #3 \right)}
+\newcommand{\ord}{\epsilon}
+\newcommand{\vare}[2]{ #2^{(#1)} }
+%\newcommand{\orde}[2]{\epsilon^{#1} #2^{(#1)} }
+\newcommand{\orde}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ \epsilon #2^{(#1)} }%
+    }[ \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordep}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ + \epsilon #2^{(#1)} }%
+    }[ + \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordest}[1]{\mathcal{O} \left( #1\right)}
+% Package for for loops
+\usepackage{pgffor}
+% Command to print the complete series
+\newcommand{\ordser}[2]{%
+    \foreach \index in {0, ..., #1} {%
+        \ordep{\index}{#2}
+    }
+    + \ldots
+}
+
+
+% Some old commands
+\newcommand{\expp}[1]{\text{e}^{#1}}
+\newcommand{\ms}{\frac{\text{m}}{\text{s}}}
+\newcommand{\mms}{\frac{\text{m}^2}{\text{s}}}
+\newcommand{\muo}{\mu_\circ}
+\newcommand{\re}[1]{#1_{\text{Re}}}
+\newcommand{\im}[1]{#1_{\text{Im}}}
+\providecommand\Div{\mathop{\rm div}\nolimits}                  %%%%%%%%%
+\providecommand\Rot{\mathop{\rm rot}\nolimits}                  %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+
+
+\DeclareMathOperator{\tg}{tg}
+\DeclareMathOperator{\arctg}{arctg}
+
+% Tensoren fett
+\DeclareRobustCommand{\tensor}[1]{{\mbox{\mathversion{bold}\ensuremath{#1}}}}
+
+\def\inputGnumericTable{}
+
+\renewcommand{\figurename}{Fig.}
+
+\begin{document}
+
+\sloppy
+
+\section{General information}
+
+This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <> (arXiv).
+
+The contents of this module are below.
+%[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
+\begin{lstlisting}[language=tex]
+src/2D_MSE_bc_Ksolver.edp                  - script to solve for K tensor
+src/2D_MSE_bc_Lsolver.edp                  - script to solve for L tensor
+src/2D_MSE_solver.edp                      - script to solve a Cavity problem with
+                                              developed boundary conditions
+doc/2D_MSE_bc_velocity_v1.0.pdf            - this document
+\end{lstlisting}
+
+In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation.
+
+\section{Solver for interface tensors K and L}
+
+\subsection{Structure of the simulation scripts}
+
+Each simulation script take following input:
+\begin{enumerate}
+    \item geometry of the interface cell (in-line cylinders);
+	\item interface location ($intfShft$);
+    \item extent of the cell ($ymin$, $ymax$);
+    \item solid volume fraction ($thetas$);
+    \item mesh;
+    \item problem indices ($indk$ for permeability and $indk$, $indl$ for receptivity);
+\end{enumerate}
+
+The geometry and mesh (resolution controlled by parameters $n$ and $nIntf$) currently are generated within the software, but could be generated using some other tool and read in. The geometry generation begins with code shown below.
+\begin{lstlisting}[numbers=left,firstnumber=56]
+assert(intfShft>=0.0);
+
+// Define geometry, top
+border sqr1t(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2t(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
+border sqr3t(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
+border sqr4t(t=-0.5,0.5)      {x=t;    y=intfShft; label=4; }
+\end{lstlisting}
+
+Assertion is carried out to ensure that interface is not slicing the upper cylinder. Geometry defining routines must be modified in order to allow interface locations slicing the solid structure.
+
+The result of the simulation script is tensor fields at the full interface cell. The output is organized in text files, one for plane-average at the interface (resulting coefficients for velocity boundary condition), one for plane-average for sample coordinates over the whole domain (for understanding the details of flow near the interface).
+
+\subsection{Variational formulation}
+
+The developed software solve coupled systems of Stoke's equations. By fixing indices $k,l$, we set $u_i^{K^{\pm}} = K^{\pm}_{ik}$, $u_i^{L^{\pm}} = L^{\pm}_{ikl}$, $p^{K^{\pm}} = A^{\pm}_{k}$ and $p^{L^{\pm}} = B^{\pm}_{kl}$. Then the governing equations take form (see paper ?? for all details)
+\begin{align}
+- p^{K^{+}}_{,i} + u^{K^{+}}_{i,jj} & = 0, &  - p^{L^{+}}_{,i} + u^{L^{+}}_{i,jj} & = 0, \\
+u^{K^{+}}_{i,i} & = 0, & u^{L^{+}}_{i,i} & = 0 , \\
+\left. u^{K^{+}}_{i} \right|_{\Gamma_C} & = 0, & \left. u^{L^{+}}_{i} \right|_{\Gamma_C} & = 0, \\
+\left. u^{K^{-}}_{i} \right|_{\Gamma_I} & = \left. u^{K^{+}}_{i} \right|_{\Gamma_I}, &  \left. u^{L^{-}}_{i} \right|_{\Gamma_I} & = \left. u^{L^{+}}_{i} \right|_{\Gamma_I},  \\
+[ - p^{K^{+}} \delta_{ij} + 2 & \left. \str{}{ij}{u^{K^{+}}} ] \right|_{\Gamma_I} n_j = &  [ - p^{L^{+}} \delta_{ij} + 2 & \left. \str{}{ij}{u^{L^{+}}} ] \right|_{\Gamma_I} n_j = \\
+= [ - p^{K^{-}} \delta_{ij} + 2 & \left. \str{}{ij}{u^{K^{-}}} ] \right|_{\Gamma_I} n_j,  &  = [ - p^{L^{-}} \delta_{ij} + 2 & \left. \str{}{ij}{u^{L^{-}}} ] \right|_{\Gamma_I} n_j - \delta_{ik} n_l,  \\
+- p^{K^{-}}_{,i} + u^{K^{-}}_{i,jj} & = - \delta_{ik},  & - p^{L^{-}}_{,i} + u^{L^{-}}_{i,jj} & = 0,  \\
+u^{K^{-}}_{i,i} & = 0, & u^{L^{-}}_{i,i} & = 0, \\
+\left. u^{K^{-}}_{i} \right|_{\Gamma_C} & = 0, & \left. u^{L^{-}}_{i} \right|_{\Gamma_C} & = 0.
+\end{align}
+
+Structure of both set of equation systems is exactly the same, the only difference lies in volume forcing and stress boundary condition. Without loosing generality, we proceed by showing how to solve problems for $K$. In order to simplify notation, we skip the $K$ in equations. In order to solve these problems, we define test functions $\hat{u}_i^{\pm}$, $\hat{p}^{\pm}$ and $\hat{\lambda}$ for velocity, pressure and Lagrange multiplier (defined only on the common interface) fields. To arrive with weak formulation, we multiply equations with test function and employ integration by parts for fluid stresses, designated by $\Sigma^{\pm}_{ij} = - p^{\pm} \delta_{ij} + 2 \str{}{ij}{u^{\pm}} $, to obtain
+\begin{align}
+- \int_{\Omega} \Sigma^{+}_{ij} \hat{u}^{+}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{+}_{ij} n_j \hat{u}^{+}_{i} \,\mathit{dS} & = 0, \\
+\int_{\Omega} u^{{+}}_{i,i} \hat{p}^{+} \,\mathit{d\Omega} & = 0, \\
+- \int_{\Omega} \Sigma^{-}_{ij} \hat{u}^{-}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{-}_{ij} n_j \hat{u}^{-}_{i} \,\mathit{dS} & = -\int_{\Omega} \delta_{ik} \hat{u}^{-}_{i} \,\mathit{d\Omega},  \\
+\int_{\Omega} u^{{-}}_{i,i} \hat{p}^{-} \,\mathit{d\Omega} & = 0,
+\end{align}
+for governing equations, and
+\begin{align}
+\int_{\Gamma_I} u^{+}_{i} \hat{\lambda} \,\mathit{dS} -  \int_{\Gamma_I} u^{-}_{i} \hat{\lambda} \,\mathit{dS} & = 0,  \\
+\int_{\Gamma_I} \Sigma^{+}_{ij} n_j \hat{\lambda} \,\mathit{dS} - \int_{\Gamma_I} \Sigma^{-}_{ij} n_j \hat{\lambda} \,\mathit{dS}  & = 0,
+\end{align}
+for boundary conditions. A scalar field has been selected for Lagrange multiplier space in order to have the ability to operate with boundary conditions on component basis, i.e., put separate boundary conditions for different velocity or stress components. Additionally, we must modify the weak form of the governing equations and add the forcing from Lagrange multipliers to force the required conditions. The governing equations then become
+\begin{align}
+- \int_{\Omega} \Sigma^{+}_{ij} \hat{u}^{+}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{+}_{ij} n_j \hat{u}^{+}_{i} \,\mathit{dS} + \int_{\Gamma_I} m^{+}_{i} \left(\lambda\right) \hat{u}^{+}_i \,\mathit{dS} & = 0, \\
+\int_{\Omega} u^{{+}}_{i,i} \hat{p}^{+} \,\mathit{d\Omega} + \int_{\Gamma_I} d^{+} \left(\lambda\right) \hat{p}^{+} \,\mathit{dS} & = 0, \\
+- \int_{\Omega} \Sigma^{-}_{ij} \hat{u}^{-}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{-}_{ij} n_j \hat{u}^{-}_{i} \,\mathit{dS} + \int_{\Gamma_I} m^{-}_{i} \left(\lambda\right) \hat{u}^{-}_i \,\mathit{dS} & = -\int_{\Omega} \delta_{ik} \hat{u}^{-}_{i} \,\mathit{d\Omega},  \\
+\int_{\Omega} u^{{-}}_{i,i} \hat{p}^{-} \,\mathit{d\Omega} + \int_{\Gamma_I} d^{-} \left(\lambda\right) \hat{p}^{-} \,\mathit{dS} & = 0,
+\end{align}
+where functions $m^{+}_i$, $m^{-}_i$, $d^{+}$ and $d^{-}$ are corresponding transpose functions of boundary conditions on the interface. This weak formulation results in a linear matrix to solve, as shown below.
+\begin{lstlisting}[numbers=left,firstnumber=161]
+    // Assemble the main matrix, add transpose matrices for feedback
+    // from Lagrange multipliers
+    CoupSYS = [ [ L1,  0,  B1', B2', B3', B4', B5', B6' ],
+                [ 0,  L2,  B1n',B2n',B3n',B4n',0,   0   ],
+                [ B1, B1n, BPT, 0,   0,   0,   0,   0   ],
+                [ B2, B2n, 0,   BPT, 0,   0,   0,   0   ],
+                [ B3, B3n, 0,   0,   BPT, 0,   0,   0   ],
+                [ B4, B4n, 0,   0,   0,   BPT, 0,   0   ],
+                [ B5, 0,   0,   0,   0,   0,   BPB, 0   ],
+                [ B6, 0,   0,   0,   0,   0,   0,   BPB ] ];
+\end{lstlisting}
+
+The matrices \texttt{L1} and \texttt{L2} are bilinear forms of fluid stress in upper and lower domains, \texttt{B1}, \texttt{B2}, \texttt{B1n} and \texttt{B2n} are bilinear forms of velocity boundary condition two components,  \texttt{B3}, \texttt{B4}, \texttt{B3n} and \texttt{B4n} are bilinear forms of stress boundary condition two components at the interface, and \texttt{B5} and \texttt{B6} are bilinear forms of stress boundary condition two components at the top of the upper domain. The prime denotes a transpose of matrices and those are added in the system as feedback from Lagrange multipliers. Due to the fact, that FreeFem++ doesn't have the capability to work with surface-only meshes, we have to add penalty for unused parts of Lagrange multiplier space, which are \texttt{BPT} and \texttt{BPB}. In addition, we have through testing noticed that Lagrangian multiplier approach works the best using double the resolution and one order smaller finite element space (in our case \texttt{P1}).
+
+\section{Solver for led driven cavity flow over porous medium}
+
+The simulation script take following input:
+\begin{enumerate}
+    \item geometry of the flow problem, both free fluid and porous medium, number of grid points $n$ per unit length;
+	\item scale separation parameter $epsP$ and volume fraction $thetas$;
+    \item interface location ($yif$);
+    \item results from interface cell (tensors $K$ and $L$);
+    \item Upper wall velocity $Udrv$.
+\end{enumerate}
+
+The domain consists of free fluid domain $\Omega_f$ and porous medium domain $\Omega_p$, encompassed by boundaries at interface $\Gamma_{if}$, upper wall $\Gamma_{f2}$ and side walls $\Gamma_{f13}$ of free fluid, and lower wall $\Gamma_{p4}$ and side walls $\Gamma_{p13}$ of porous domain. Within these two domains, we solve equation system
+\begin{align}
+- p_{,i} + \ord u_{i,jj} & = 0 & \mbox{ in } \Omega_f, & & \left. u_i \right|_{\Gamma_{f13}} & = 0, \ \ \ \ \left. u_1 \right|_{\Gamma_{f2}} = Udrv, \ \ \ \ \left. u_2 \right|_{\Gamma_{f2}} = 0, \\
+u_{i,i} & = 0 & \mbox{ in } \Omega_f, & & \left. u_1 \right|_{\Gamma_{if}} & = - K_{1j} \frac{p_{,j}}{\ord} + L_{1ij} \frac{\Sigma_{ij}}{\ord}, \ \ \ \ \left. u_2 \right|_{\Gamma_{if}} = - K_{2j} \frac{\tilde{p}_{,j}}{\ord}, \\
+\tilde{p}_{,jj} & = 0 & \mbox{ in } \Omega_p, & & \left. \tilde{p} \right|_{\Gamma_{if}} & = p, \ \ \ \ \left. \tilde{p}_{,1} \right|_{\Gamma_{p13}} = 0, \ \ \ \ \left. \tilde{p}_{,2} \right|_{\Gamma_{p4}} = 0.
+\end{align}
+The Darcy flow in the interior is expressed using the Darcy law with constant isotropic permeability $K_{drc}$
+\begin{equation}
+\tilde{u}_i = - K_{drc} \frac{\tilde{p}_{,i}}{\ord} .
+\end{equation}
+For the final remark, we have observed that
+%a special care one has to devote to the 
+construction of Lagrange multipliers is different. Before we saw that transpose operation was always sufficient (and required) for accurate solution. However, in this case, one has to explicitly define that forcing from velocity boundary condition acts only on velocities (and not on derivatives of velocity or pore pressure), while pressure boundary condition for pore pressure equation acts only as forcing in the pore pressure equation.
+Otherwise, the weak form and solver is constructed exactly as described in the previous section.
+
+\end{document}

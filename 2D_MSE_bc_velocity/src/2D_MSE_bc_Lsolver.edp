@@ -1,0 +1,304 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of MSE_bc.
+//
+// MSE_bc is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MSE_bc is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with MSE_bc. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with MSE_bc. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 2D_MSE_bc_Lsolver.edp" in command line (Unix) or
+// open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
+// documentation in <doc/> or documentation of FreeFem++.
+
+load "UMFPACK64"
+
+// Mesh resolution
+int n=10;
+// Interface refinement
+int nIntf = 4;
+
+// Definition of solid volume fraction
+real thetas = 0.02;
+real cylr = sqrt(thetas/pi);
+
+// Box size
+real ymin =-4.5-cylr;
+real ymax = 5.0;
+
+// Problem indices
+int indk = 1;
+int indl = 2;
+
+// Sampling rate of vertical distance unit length 
+int Nsamp = 60;
+
+// Define location of the interface (0 = tip of the upper structure)
+// Positive values - rising the interface
+real intfShft = 0.5;
+int  curInd   = 5;
+
+// Check that we are above the first cylinder (requirement for geometry defined below),
+// and that there is a space for some triangles between cylinder and interface
+assert(intfShft>=0.0001);
+// Check that we are defining reasonable volume fraction (so cylinders doesn't touch)
+assert(thetas > 0.0);
+assert(cylr < 0.5 );
+
+// Define geometry, top
+border sqr1t(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2t(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
+border sqr3t(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
+border sqr4t(t=-0.5,0.5)      {x=t;    y=intfShft; label=4; }
+
+// Define geometry, bottom
+border sqr1b(t=ymin,intfShft)  {x= 0.5; y=t;        label=1; }
+border sqr2b(t=0.5,-0.5)       {x=t;    y=intfShft; label=2; }
+border sqr3b(t=intfShft,ymin)  {x=-0.5; y=t;        label=3; }
+border sqr4b(t=-0.5,0.5)       {x=t;    y=ymin;     label=4; }
+// Solid circles
+border circ1(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr    ; label=5; }
+border circ2(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-1.0; label=5; }
+border circ3(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-2.0; label=5; }
+border circ4(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-3.0; label=5; }
+border circ5(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-4.0; label=5; }
+
+cout << "R of cylinder: " << cylr << endl; 
+
+// Define the upper part of the mesh
+mesh ThT=buildmesh( sqr1t(n*2*(ymax-intfShft))+sqr2t(n*2)+sqr3t(n*2*(ymax-intfShft))+sqr4t(nIntf*n*2) );
+// Define the lower part of the mesh
+mesh ThB=buildmesh( sqr1b(n*2*(intfShft-ymin))+sqr2b(nIntf*n*2)+sqr3b(n*2*(intfShft-ymin))+sqr4b(n*2)
+                   +circ1(-cylr*pi*n*20)+circ2(-cylr*pi*n*20)+circ3(-cylr*pi*n*20)+circ4(-cylr*pi*n*20)+circ5(-cylr*pi*n*20) );
+
+// Define the mesh for Lagrangian multipliers (double the resolution)
+int nL = 2*n;
+mesh ThL=buildmesh( sqr1t(nL*2*(ymax-intfShft))+sqr2t(nL*2)+sqr3t(nL*2*(ymax-intfShft))+sqr4t(nIntf*nL*2) );
+ThL = emptymesh(ThL);
+
+// Display the generated mesh
+plot(ThB,ThT);
+// Display the Lagrangian mesh
+// plot(ThL,wait=true);
+
+// Define the corresponding FE spaces
+fespace UUPhT(ThT,[P2,P2,P1],periodic=[[1,y],[3,y]]);
+fespace UUPhB(ThB,[P2,P2,P1],periodic=[[1,y],[3,y]]);
+// Space of Lagrangian multipliers (use combined FE space as well)
+fespace UUPhL(ThL,[P1],      periodic=[[1,y],[3,y]]);
+
+// Define variational formulations
+// Fluid viscous and pressure part
+varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
+                                            +         p*dx(uu)
+                                            +         p*dy(vv)
+                                            + (dx(u)+dy(v))*pp    );
+varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dx(v))*dx(vv)
+                                            +         p*dx(uu)
+                                            +         p*dy(vv)
+                                            + (dx(u)+dy(v))*pp - 1e-10*p*pp   ) + on(4,5,u=0,v=0);
+
+// Adding unknown stresses!
+varf strT([u,v,p],[uu,vv,pp]) = int1d(ThT,2,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
+                                                ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*vv );
+varf strB([u,v,p],[uu,vv,pp]) = int1d(ThB,2  )( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
+                                                ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*vv );
+
+// Adding stress jump at the interface
+varf rhsvIntfSu ([empty],[bb]) = int1d(ThL,4)(-((indk==1)*(indl==1)*N.x+(indk==1)*(indl==2)*N.y)*bb );
+varf rhsvIntfSv ([empty],[bb]) = int1d(ThL,4)(-((indk==2)*(indl==1)*N.x+(indk==2)*(indl==2)*N.y)*bb );
+
+// Interpolation/boundary condition functions (at interface, label 4)
+// Velocity and pressure continuity
+varf intpIntfU ([u,v,p],[bb]) = int1d(ThL,4)( u*bb );
+varf intpIntfUn([u,v,p],[bb]) = int1d(ThL,4)(-u*bb );
+varf intpIntfV ([u,v,p],[bb]) = int1d(ThL,4)( v*bb );
+varf intpIntfVn([u,v,p],[bb]) = int1d(ThL,4)(-v*bb );
+// Stress boundary condition at the interface
+varf intpIntfSu ([u,v,p],[bb]) = int1d(ThL,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
+varf intpIntfSun([u,v,p],[bb]) = int1d(ThL,4)(-( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
+varf intpIntfSv ([u,v,p],[bb]) = int1d(ThL,4)( ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
+varf intpIntfSvn([u,v,p],[bb]) = int1d(ThL,4)(-( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
+// Zero stress at the top boundary (label 2)
+varf intpTopZSu ([u,v,p],[bb]) = int1d(ThL,2)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
+varf intpTopZSv ([u,v,p],[bb]) = int1d(ThL,2)( ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
+// Penalty for unused sides of Lagrangian mesh (labels 1,3 and 2 and 4)
+varf intppenS   ([b],[bb])     = int1d(ThL,1,3)( -1e-10*b*bb );
+varf intppenT   ([b],[bb])     = int1d(ThL,2)  ( -1e-10*b*bb );
+varf intppenB   ([b],[bb])     = int1d(ThL,4)  ( -1e-10*b*bb );
+
+// Construct the linear system
+matrix CoupSYS;
+{
+    // Construct fluid sub-matrices
+    matrix L1 = lapT(UUPhT,UUPhT); matrix L1s = strT(UUPhT,UUPhT);
+    L1=L1+L1s;
+    matrix L2 = lapB(UUPhB,UUPhB); matrix L2s = strB(UUPhB,UUPhB);
+    L2=L2+L2s;
+    // Construct boundary conditions on Lagrange multiplier space
+    matrix B1 = intpIntfU (UUPhT,UUPhL); matrix B1n = intpIntfUn (UUPhB,UUPhL);
+    matrix B2 = intpIntfV (UUPhT,UUPhL); matrix B2n = intpIntfVn (UUPhB,UUPhL);
+    matrix B3 = intpIntfSu(UUPhT,UUPhL); matrix B3n = intpIntfSun(UUPhB,UUPhL);
+    matrix B4 = intpIntfSv(UUPhT,UUPhL); matrix B4n = intpIntfSvn(UUPhB,UUPhL);
+    matrix B5 = intpTopZSu(UUPhT,UUPhL);
+    matrix B6 = intpTopZSv(UUPhT,UUPhL);
+    matrix BPS= intppenS  (UUPhL,UUPhL); matrix BPT = intppenT(UUPhL,UUPhL);
+    matrix BPB= intppenB  (UUPhL,UUPhL);
+    BPT=BPT+BPS;
+    BPB=BPB+BPS;
+
+    CoupSYS = [ [ L1,  0,  B1', B2', B3', B4', B5', B6' ],
+                [ 0,  L2,  B1n',B2n',B3n',B4n',0,   0   ],
+                [ B1, B1n, BPT, 0,   0,   0,   0,   0   ],
+                [ B2, B2n, 0,   BPT, 0,   0,   0,   0   ],
+                [ B3, B3n, 0,   0,   BPT, 0,   0,   0   ],
+                [ B4, B4n, 0,   0,   0,   BPT, 0,   0   ],
+                [ B5, 0,   0,   0,   0,   0,   BPB, 0   ],
+                [ B6, 0,   0,   0,   0,   0,   0,   BPB ] ];
+}
+
+// Construct the right hand side vector
+real[int] RHS(UUPhT.ndof+UUPhB.ndof+6*UUPhL.ndof);
+{
+    RHS(0:UUPhT.ndof+UUPhB.ndof+6*UUPhL.ndof-1) = 0;
+    RHS(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1)     = lapB(0,UUPhB);
+    RHS(UUPhT.ndof+UUPhB.ndof+2*UUPhL.ndof:UUPhT.ndof+UUPhB.ndof+3*UUPhL.ndof-1) = rhsvIntfSu(0, UUPhL);
+    RHS(UUPhT.ndof+UUPhB.ndof+3*UUPhL.ndof:UUPhT.ndof+UUPhB.ndof+4*UUPhL.ndof-1) = rhsvIntfSv(0, UUPhL);
+}
+
+// Choose the direct solver, solve the system
+set(CoupSYS, solver=sparsesolver);
+real[int] SOL = CoupSYS^-1*RHS;
+
+UUPhT [ut,vt,pt];
+UUPhB [ub,vb,pb];
+
+// Extract results
+ut[] = SOL(0:UUPhT.ndof);
+vt[] = SOL(0:UUPhT.ndof);
+pt[] = SOL(0:UUPhT.ndof);
+ub[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
+vb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
+pb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
+
+// Do integrals for boundary condition coefficients at the interface
+real L1BL = int1d(ThT,levelset=(y-intfShft    ))( ut );
+real L2BL = int1d(ThT,levelset=(y-intfShft    ))( vt );
+
+cout << "yintf = " << intfShft << ", L1"+indk+indl+"BL = " << L1BL << ", L2"+indk+indl+"BL = " << L2BL << endl;
+
+// Save the result in a txt file (yintf, L1kl, L2kl)
+{
+    ofstream resfile("2D_bound_cond_Li"+indk+indl+"_intf.txt",append);
+    resfile << intfShft << " " << L1BL << " " << L2BL << endl;
+}
+// Sample the plane average results, adjust number of samples according to vertical height
+Nsamp = Nsamp*(ymax-ymin);
+real[int,int] PlaneUavg(5,Nsamp);
+real          Fslice;
+// Create plane average data
+for (int i=0; i<Nsamp; i++){
+    // Coordinate
+    PlaneUavg(0,i) = ymin+1e-6 + i*(ymax-ymin-2e-6)/(Nsamp-1.0);
+
+    // Integral using level set
+    if(PlaneUavg(0,i) >= intfShft)
+    {
+        Fslice         = int1d(ThT,levelset=(y-PlaneUavg(0,i)))(1.0 );
+        PlaneUavg(1,i) = int1d(ThT,levelset=(y-PlaneUavg(0,i)))( ut );
+        PlaneUavg(2,i) = int1d(ThT,levelset=(y-PlaneUavg(0,i)))( vt );
+        PlaneUavg(3,i) = int1d(ThT,levelset=(y-PlaneUavg(0,i)))( pt );
+    }
+    else
+    {
+        Fslice         = int1d(ThB,levelset=(y-PlaneUavg(0,i)))(1.0 );
+        PlaneUavg(1,i) = int1d(ThB,levelset=(y-PlaneUavg(0,i)))( ub );
+        PlaneUavg(2,i) = int1d(ThB,levelset=(y-PlaneUavg(0,i)))( vb );
+        PlaneUavg(3,i) = int1d(ThB,levelset=(y-PlaneUavg(0,i)))( pb );
+    }
+    // Intrinsic plane average of pressure
+    PlaneUavg(4,i) = PlaneUavg(3,i) / Fslice;
+}
+// Save the data to text file
+{
+    ofstream resfile("2D_bound_cond_Li"+indk+indl+"prof"+curInd+".txt");
+    resfile << "# interface coord = " << intfShft << endl;
+    resfile << "# y, <u>_y, <v>_y, <p>_y, <p>^i_y " << endl;
+    for (int i=0; i<Nsamp; i++) resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " " << PlaneUavg(3,i) << " " << PlaneUavg(4,i) << endl;
+}
+
+// Define the "jet" colorscheme, BUT - it is intensity incorrect (black & white prints look weird)
+real[int] colorsJET = [
+    6.666666666666666297e-01, 1.000000000000000000e+00, 8.333000000000000407e-01,
+    6.666666666666666297e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.388833333333332476e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.111166666666666414e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.833333333333332593e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.555499999999999883e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.277833333333332710e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.000000000000000000e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    4.666586663466538720e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    4.166791660416978571e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    3.333333333333333148e-01, 5.000000000000000000e-01, 1.000000000000000000e+00,
+    2.499875006249687726e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    2.000080003200127854e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    1.666666666666666574e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.388833333333333309e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.111166666666666553e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    8.333333333333332871e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.554999999999999521e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    2.778333333333333002e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 8.333000000000000407e-01
+    ];
+// Intesity-correct colorscheme
+// Define the "cubehelix" colorscheme, Green-ish (https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubetry.html)
+real[int] colorsCUBE = [
+    0.000000000000000000e+00, 0.000000000000000000e+00, 0.000000000000000000e+00,
+    6.474926253687315336e-01, 7.902097902097902082e-01, 1.429999999999999882e-01,
+    6.219336219336218941e-01, 8.587360594795538926e-01, 2.690000000000000169e-01,
+    5.993217054263565435e-01, 9.197860962566843934e-01, 3.739999999999999991e-01,
+    5.784313725490195512e-01, 9.714285714285714191e-01, 4.550000000000000155e-01,
+    5.589192708333332593e-01, 1.000000000000000000e+00, 5.120000000000000107e-01,
+    5.386029411764705621e-01, 1.000000000000000000e+00, 5.440000000000000391e-01,
+    5.150421179302044905e-01, 1.000000000000000000e+00, 5.540000000000000480e-01,
+    4.888888888888889284e-01, 1.000000000000000000e+00, 5.849999999999999645e-01,
+    4.657464212678936732e-01, 9.878787878787879118e-01, 6.600000000000000311e-01,
+    4.437840515106488692e-01, 9.257221458046767104e-01, 7.269999999999999796e-01,
+    4.223227752639516774e-01, 8.467432950191571273e-01, 7.830000000000000293e-01,
+    3.999999999999999667e-01, 7.539203860072376528e-01, 8.289999999999999591e-01,
+    3.755952380952380931e-01, 6.481481481481482509e-01, 8.639999999999999902e-01,
+    3.477192982456139836e-01, 5.337078651685394082e-01, 8.900000000000000133e-01,
+    3.155186064924782041e-01, 4.631463146314631629e-01, 9.090000000000000302e-01,
+    2.861552028218694588e-01, 4.095341278439869614e-01, 9.230000000000000426e-01,
+    2.591397849462365732e-01, 3.311965811965812412e-01, 9.360000000000000542e-01,
+    2.328767123287670826e-01, 2.305263157894736625e-01, 9.499999999999999556e-01,
+    2.050147492625369328e-01, 1.164948453608247309e-01, 9.699999999999999734e-01,
+    0.000000000000000000e+00, 0.000000000000000000e+00, 1.000000000000000000e+00
+    ];
+
+// Plot the results
+plot(ub,ut,nbiso=80,hsv=colorsJET,fill=1,value=1);
+plot(vb,vt,nbiso=80,hsv=colorsJET,fill=1,value=1);
+plot(pb,pt,nbiso=80,hsv=colorsJET,fill=1,value=1,wait=1);
+
+
