@@ -15,8 +15,7 @@ This software currently has one module 2D_MSE_bc_velocity. This module gives the
 possibility to compute the coefficients for BC in two-dimensions (2D) for porous
 case. It also contains an example solver to employ the developed boundary con-
 dition. If you find this software useful, please cite the corresponding publi-
-cation <arXiv:1604.02880> (arXiv preprint) or <> (JFM Rapids, under
-consideration).
+cation <arXiv:1604.02880> (arXiv preprint) or <> (under consideration for JFM).
 
 The module 2D_MSE_bc_velocity contains
 src/2D_MSE_bc_Ksolver.edp        -- script to solve for K tensor
