@@ -64,7 +64,7 @@ real[int,int] ifL2kl= [ [0.0,       0.0      ],
 
 
 
-// Set channel extent
+// Set domain extent
 real ymax =  0.5 - cylr + 1.0/epsP;
 real ymin = -7.5 - cylr;
 real xmin = -5.0;
@@ -91,9 +91,9 @@ macro stress11() (  -p + 2*( dx(u)       )*epsP  ) //
 macro stress12() (         ( dy(u)+dx(v) )*epsP  ) //
 macro stress22() (  -p + 2*( dy(v)       )*epsP  ) //
 // Macro for velocity boundary condition ubcF, vbcF -- evaluated at free fluid side, vbcP - evaruated at porous side
-macro ubcF() ( -(ifKij(0,0)*dx(p)+ifKij(0,1)*dy(p))/epsP + (ifL1kl(0,0)*stress11+(ifL1kl(0,1)+ifL1kl(1,0))*stress12+ifL1kl(1,1)*stress22)/epsP ) //
-macro vbcF() (                                             (ifL2kl(0,0)*stress11+(ifL2kl(0,1)+ifL2kl(1,0))*stress12+ifL2kl(1,1)*stress22)/epsP ) //
-macro vbcP() ( -(ifKij(1,0)*dx(p)+ifKij(1,1)*dy(p))/epsP                                                                                       ) //
+macro ubcF() ( -(ifKij(0,0)*dx(p)+ifKij(0,1)*dy(p))/epsP + (ifL1kl(0,0)*2*dx(u)+(ifL1kl(0,1)+ifL1kl(1,0))*(dy(u)+dx(v))+ifL1kl(1,1)*2*dy(v)) ) //
+macro vbcF() (                                             (ifL2kl(0,0)*2*dx(u)+(ifL1kl(0,1)+ifL2kl(1,0))*(dy(u)+dx(v))+ifL2kl(1,1)*2*dy(v)) ) //
+macro vbcP() ( -(ifKij(1,0)*dx(p)+ifKij(1,1)*dy(p))/epsP                                                                                     ) //
 
 // Generate meshes
 mesh ThT=buildmesh( sqr1 (   n*(ymax-yif))+sqr2 (   n*(xmax-xmin))
