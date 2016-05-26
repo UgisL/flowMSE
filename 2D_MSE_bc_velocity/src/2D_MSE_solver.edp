@@ -31,8 +31,7 @@
 load "UMFPACK64"
 
 // Mesh resolution
-int n=16;
-n = 4;
+int n=8;
 // Lagrange multipliers are constructed with twice the resolution
 int nL=2;
 
@@ -46,29 +45,29 @@ real Udrv      =  100.0;
 
 // Defining field sampling parameters
 real xslice    = -1.0;
-int  Nsamp     = 240;   // Sampling rate of vertical distance unit length
+int  NsampU    =   60;   // Sampling rate of vertical distance unit length
+int  Nsamp;
 
 // Definition of interface coordinate and bc matrices (assuming y=0 at the tip of the last cylinder)
 real yif = 0.1;
 // Interior permeability
-real Kdrc= 0.0925538;
+real Kdrc= 0.0985716;
 
 // Interface cell results, permeability
 real[int,int] ifKij = [ [0.0311839, 0.0      ],
-                        [0.0,       0.0925538] ];
+                        [0.0,       0.0985716] ];
 // Slip length
-real[int,int] ifL1kl= [ [0.0,       0.1669320],
+real[int,int] ifL1kl= [ [0.0,       0.1783100],
                         [0.0,       0.0      ] ];
 real[int,int] ifL2kl= [ [0.0,       0.0      ],
                         [0.0,       0.0      ] ];
 
 
-
 // Set domain extent
-real ymax =  0.5 - cylr + 1.0/epsP;
-real ymin = -7.5 - cylr;
-real xmin = -5.0;
-real xmax =  5.0;
+real ymax =               1.0/epsP;
+real ymin =  0.5 - cylr - 0.5/epsP;
+real xmin =             - 0.5/epsP;
+real xmax =               0.5/epsP;
 
 // Define geometry, channel borders, free fluid
 border sqr1(t=yif, ymax) {x=xmax; y=t;    label=1; }
@@ -81,19 +80,16 @@ border sqr2p(t=xmax,xmin) {x=t;    y=yif;  label=2; }
 border sqr3p(t=yif, ymin) {x=xmin; y=t;    label=3; }
 border sqr4p(t=xmin,xmax) {x=t;    y=ymin; label=4; }
 
-cout << "R of cylinder: " << cylr << endl; 
+cout << "R of cylinder: " << cylr << endl;
 
 // Macros for more convinient desciption of variational formulation
 macro epsilon(v1,v2) [dx(v1),dy(v2),(dy(v1)+dx(v2))/sqrt(2)] //
 macro div(v1,v2) ( dx(v1)+dy(v2) ) //
-// Macros for boundary stress components
-macro stress11() (  -p + 2*( dx(u)       )*epsP  ) //
-macro stress12() (         ( dy(u)+dx(v) )*epsP  ) //
-macro stress22() (  -p + 2*( dy(v)       )*epsP  ) //
-// Macro for velocity boundary condition ubcF, vbcF -- evaluated at free fluid side, vbcP - evaruated at porous side
-macro ubcF() ( -(ifKij(0,0)*dx(p)+ifKij(0,1)*dy(p))/epsP + (ifL1kl(0,0)*2*dx(u)+(ifL1kl(0,1)+ifL1kl(1,0))*(dy(u)+dx(v))+ifL1kl(1,1)*2*dy(v)) ) //
-macro vbcF() (                                             (ifL2kl(0,0)*2*dx(u)+(ifL1kl(0,1)+ifL2kl(1,0))*(dy(u)+dx(v))+ifL2kl(1,1)*2*dy(v)) ) //
-macro vbcP() ( -(ifKij(1,0)*dx(p)+ifKij(1,1)*dy(p))/epsP                                                                                     ) //
+// Macro for velocity boundary condition ubcF, vbcF -- evaluated at free fluid side, ubcP, vbcP - evaruated at porous side
+macro ubcF() (                                             (ifL1kl(0,0)*2.0*dx(u)+(ifL1kl(0,1)+ifL1kl(1,0))*( dy(u)+dx(v) )+ifL1kl(1,1)*2.0*dy(v))   ) //
+macro vbcF() (                                             (ifL2kl(0,0)*2.0*dx(u)+(ifL2kl(0,1)+ifL2kl(1,0))*( dy(u)+dx(v) )+ifL2kl(1,1)*2.0*dy(v))   ) //
+macro ubcP() ( -(ifKij(0,0)*dx(p)+ifKij(0,1)*dy(p))/epsP                                                                                             ) //
+macro vbcP() ( -(ifKij(1,0)*dx(p)+ifKij(1,1)*dy(p))/epsP                                                                                             ) //
 
 // Generate meshes
 mesh ThT=buildmesh( sqr1 (   n*(ymax-yif))+sqr2 (   n*(xmax-xmin))
@@ -140,6 +136,7 @@ varf strBi([p],[pp]) = int1d(ThB,2)( (dx(p)*N.x    + dy(p)*N.y)*pp );
 // Lagrange multiplier to impose pressure continuity
 varf intpIntfPp ([p],[bb]) = int1d(ThL,4)(   -p *bb );
 // Lagrange multiplier to set normal vel. b.c.
+varf intpIntfUpn([p],[bb]) = int1d(ThL,4)( -ubcP*bb );
 varf intpIntfVpn([p],[bb]) = int1d(ThL,4)( -vbcP*bb );
 
 // Construct the linear system
@@ -156,6 +153,7 @@ matrix CoupSYSup;
     // Porous part
     matrix LB = lapB(PhB,PhB);          matrix LBs = strBi(PhB,PhB);
     LB=LB+LBs;
+    matrix B1p= intpIntfUpn(PhB,UUPhL);
     matrix B2p= intpIntfVpn(PhB,UUPhL);
     matrix B4 = intpIntfPp (PhB,UUPhL);
     // Lagrange multipliers, penalty, feedback to free fluid
@@ -164,7 +162,7 @@ matrix CoupSYSup;
     // Assemble the main matrix
     CoupSYSup = [ [ LT, 0,    B1t,  B2t, 0   ], // [ Dummy's ] 
                   [ 0,  LB,   0,    0,   B4' ], // [ Dummy's ]
-                  [ B1, 0,    BP4,  0,   0   ],
+                  [ B1, B1p,  BP4,  0,   0   ],
                   [ B2, B2p,  0,    BP4, 0   ],
                   [ B3, B4,   0,    0,   BP4 ] ];
 }
@@ -213,17 +211,41 @@ psh = p  - pavgif;
 pb  = pb - pavgif;
 
 
-// Sample a given slice, output results to text file
-Nsamp = Nsamp*(ymax-ymin);
+// Sample a given vertical slice, output results to text file
+Nsamp = NsampU*(ymax-ymin);
 {
     real ysmp;
-    ofstream resfileX("2D_MSE_solver_results_sampleSliceX_"+caseFix+".txt");
-    resfileX << "# y, u, v, p, sampled at x = " << xslice << endl;
+    ofstream resfileY("2D_MSE_solver_results_sampleSliceY_"+caseFix+".txt");
+    resfileY << "# xmin = " << xmin << ", xmax = " << xmax << endl;
+    resfileY << "# y, u, v, p, sampled at x = " << xslice << endl;
     for(int i=0; i<Nsamp; i++)
     {
         ysmp = ymin+1e-6 + i*(ymax-ymin-2e-6)/(Nsamp-1.0);
-        if(ysmp > yif) resfileX << ysmp << " " << u (xslice,ysmp) << " " << v (xslice,ysmp) << " " << psh(xslice,ysmp) << endl;
-        else           resfileX << ysmp << " " << ub(xslice,ysmp) << " " << vb(xslice,ysmp) << " " << pb (xslice,ysmp) << endl;
+        if(ysmp > yif) resfileY << ysmp << " " << u (xslice,ysmp) << " " << v (xslice,ysmp) << " " << psh(xslice,ysmp) << endl;
+        else           resfileY << ysmp << " " << ub(xslice,ysmp) << " " << vb(xslice,ysmp) << " " << pb (xslice,ysmp) << endl;
+    }
+}
+
+// Sample a the interface (horizontal slice), output results to text file, including all derivatives
+PhT dxp = dx(p), dyp = dy(p);
+fespace UhT(ThT,[P2]);
+UhT dxu = dx(u), dxv = dx(v), dyu = dy(u), dyv = dy(v);
+Nsamp = NsampU*(xmax-xmin);
+{
+    real ysmp0 = yif+1e-6;
+    real xsmp;
+    ofstream resfileX("2D_MSE_solver_results_sampleSliceX_"+caseFix+".txt");
+    resfileX << "# ymin = " << ymin << ", ymax = " << ymax << endl;
+    resfileX << "# x, u, v, p, dxu, dxv, dyu, dyv, dxp, dyp,   line probe at y = " << ysmp0 << endl;
+    for(int i=0; i<Nsamp; i++)
+    {
+        xsmp = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.00);
+
+        resfileX << xsmp << " " << u  (xsmp,ysmp0) << " " << v  (xsmp,ysmp0) << " "
+                                << psh(xsmp,ysmp0) << " " << dxu(xsmp,ysmp0) << " "
+                                << dxv(xsmp,ysmp0) << " " << dyu(xsmp,ysmp0) << " "
+                                << dyv(xsmp,ysmp0) << " " << dxp(xsmp,ysmp0) << " "
+                                << dyp(xsmp,ysmp0) << endl;
     }
 }
 
