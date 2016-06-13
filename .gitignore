@@ -12,5 +12,8 @@
 **/*.zip
 # ignore MacOS store files
 **/.DS_Store
-# Ignore JFM specific readme
-README.JFM
+# Ignore release specific readmes
+README.*
+# Ignore gmsh geometry definitions and mesh files
+**/*.geo
+**/*.msh

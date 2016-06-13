@@ -1,11 +1,12 @@
 
-This is README file of software MSE_bc v1.01.
+This is README file of software flowMSE v1.01.
 
 This software is a script compilation for FreeFem++ <http://www.freefem.org/>
 to solve interface cell problems and arrive with coefficients in boundary
-condition (BC) between porous medium and free fluid.
+condition (BC) between porous medium and free fluid. It also allows to solve
+for some example macroscale problems using those boundary conditions.
 
-The MSE_bc software is licensed under LGPLv3 license.
+The flowMSE software is licensed under LGPLv3 license.
 
 --------------------------------------------------------------------------------
  Contents
@@ -22,7 +23,7 @@ src/2D_MSE_bc_Ksolver.edp        -- script to solve for K tensor
 src/2D_MSE_bc_Lsolver.edp        -- script to solve for L tensor
 src/2D_MSE_solver.edp            -- script to solve a Cavity problem with
                                     developed boundary conditions
-doc/2D_MSE_bc_velocity_v1.01.pdf -- explanation of variational formulation and
+doc/2D_MSE_bc_velocity.pdf       -- explanation of variational formulation and
                                     script parameters
 
 In the near future, this software will be extended to three-dimensions and also

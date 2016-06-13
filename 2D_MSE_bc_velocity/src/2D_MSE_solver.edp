@@ -3,24 +3,24 @@
 // Ugis Lacis, ugis.lacis@gmail.com
 // Shervin Bagheri, shervin.bagheri@mech.kth.se
 // -------------------------------------------- LICENSE LGPLv3 ------------------------------------
-// This file is part of MSE_bc.
+// This file is part of flowMSE.
 //
-// MSE_bc is free software: you can redistribute it and/or modify
+// flowMSE is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// MSE_bc is distributed in the hope that it will be useful,
+// flowMSE is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with MSE_bc. If not, see <http://www.gnu.org/licenses/>.
+// along with flowMSE. If not, see <http://www.gnu.org/licenses/>.
 // ---------------------------------------------- DESCRIPTION -------------------------------------
 //
 // This software is meant to be executed using FreeFem++. You should have recieved a copy
-// of it along with MSE_bc. If not, get it from <http://www.freefem.org/>.
+// of it along with flowMSE. If not, get it from <http://www.freefem.org/>.
 //
 // It has been tested to produce accurate results using FreeFem++ version 3.37.
 //
