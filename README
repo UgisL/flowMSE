@@ -26,8 +26,7 @@ src/2D_MSE_solver.edp            -- script to solve a Cavity problem with
 doc/2D_MSE_bc_velocity.pdf       -- explanation of variational formulation and
                                     script parameters
 
-In the near future, this software will be extended to three-dimensions and also
-stress boundary condition.
+In the near future, this software will be extended to three-dimensions.
 
 --------------------------------------------------------------------------------
  Quick-start

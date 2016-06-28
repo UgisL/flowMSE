@@ -137,14 +137,14 @@
 
 This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <arXiv:1604.02880> (arXiv preprint).
 
-The contents of this module are below.
+The contents of this module are listed below.
 %[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
 \begin{lstlisting}[language=tex]
 src/2D_MSE_bc_Ksolver.edp                  - script to solve for K tensor
 src/2D_MSE_bc_Lsolver.edp                  - script to solve for L tensor
 src/2D_MSE_solver.edp                      - script to solve a Cavity problem with
                                               developed boundary conditions
-doc/2D_MSE_bc_velocity_v1.0.pdf            - this document
+doc/2D_MSE_bc_velocity.pdf                 - this document
 \end{lstlisting}
 
 In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation.
@@ -163,10 +163,8 @@ Each simulation script take following input:
     \item problem indices ($indk$ for permeability and $indk$, $indl$ for receptivity);
 \end{enumerate}
 
-The geometry and mesh (resolution controlled by parameters $n$ and $nIntf$) currently are generated within the software, but could be generated using some other tool and read in. The geometry generation begins with code shown below.
-\begin{lstlisting}[numbers=left,firstnumber=56]
-assert(intfShft>=0.0);
-
+The geometry and mesh (resolution controlled by parameters $n$ and $nIntf$) currently are generated within the software, but could be generated using some other tool and read in. The geometry generation of interface begins with code shown below.
+\begin{lstlisting}[numbers=left,firstnumber=90]
 // Define geometry, top
 border sqr1t(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
 border sqr2t(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
@@ -174,7 +172,7 @@ border sqr3t(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
 border sqr4t(t=-0.5,0.5)      {x=t;    y=intfShft; label=4; }
 \end{lstlisting}
 
-Assertion is carried out to ensure that interface is not slicing the upper cylinder. Geometry defining routines must be modified in order to allow interface locations slicing the solid structure.
+Assertion is carried out to ensure that interface is not slicing the upper cylinder (line 59). Geometry defining routines must be modified in order to allow interface locations slicing the solid structure. Additionally, the classical permeability problem of the interior is defined and solved in lines 65--86 for getting appropriate boundary conditions for the interface cell (see main paper).
 
 The result of the simulation script is tensor fields at the full interface cell. The output is organized in text files, one for plane-average at the interface (resulting coefficients for velocity boundary condition), one for plane-average for sample coordinates over the whole domain (for understanding the details of flow near the interface).
 
@@ -242,7 +240,8 @@ The simulation script take following input:
 The domain consists of free fluid domain $\Omega_f$ and porous medium domain $\Omega_p$, encompassed by boundaries at interface $\Gamma_{if}$, upper wall $\Gamma_{f2}$ and side walls $\Gamma_{f13}$ of free fluid, and lower wall $\Gamma_{p4}$ and side walls $\Gamma_{p13}$ of porous domain. Within these two domains, we solve equation system
 \begin{align}
 - p_{,i} + \ord u_{i,jj} & = 0 & \mbox{ in } \Omega_f, & & \left. u_i \right|_{\Gamma_{f13}} & = 0, \ \ \ \ \left. u_1 \right|_{\Gamma_{f2}} = Udrv, \ \ \ \ \left. u_2 \right|_{\Gamma_{f2}} = 0, \\
-u_{i,i} & = 0 & \mbox{ in } \Omega_f, & & \left. u_1 \right|_{\Gamma_{if}} & = - K_{1j} \frac{p_{,j}}{\ord} + L_{1ij} \frac{\Sigma_{ij}}{\ord}, \ \ \ \ \left. u_2 \right|_{\Gamma_{if}} = - K_{2j} \frac{\tilde{p}_{,j}}{\ord}, \\
+u_{i,i} & = 0 & \mbox{ in } \Omega_f, & & \left. u_1 \right|_{\Gamma_{if}} & = - K_{1j} \frac{\tilde{p}_{,j}}{\ord} + L_{1ij} \left( u_{i,j} + u_{j,i} \right), \\
+& & & & \left. u_2 \right|_{\Gamma_{if}} & = - K_{2j} \frac{\tilde{p}_{,j}}{\ord} + L_{2ij} \left( u_{i,j} + u_{j,i} \right), \\
 \tilde{p}_{,jj} & = 0 & \mbox{ in } \Omega_p, & & \left. \tilde{p} \right|_{\Gamma_{if}} & = p, \ \ \ \ \left. \tilde{p}_{,1} \right|_{\Gamma_{p13}} = 0, \ \ \ \ \left. \tilde{p}_{,2} \right|_{\Gamma_{p4}} = 0.
 \end{align}
 The Darcy flow in the interior is expressed using the Darcy law with constant isotropic permeability $K_{drc}$
