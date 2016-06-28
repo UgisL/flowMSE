@@ -1,0 +1,203 @@
+\NeedsTeXFormat{LaTeX2e}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0},
+}
+
+%\usepackage[lite,subscriptcorrection,slantedGreek,nofontinfo]{mtpro2}
+%\usepackage{microtype}
+
+\usepackage{parskip}
+%\usepackage{units}
+\usepackage{xspace}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+%\usepackage{amssymb}
+\usepackage{graphicx}
+%\usepackage{units}
+%\usepackage[section]{placeins}
+\usepackage{cite}
+\usepackage{subfigure}
+
+% Reduce margins
+\usepackage{a4wide}
+% Header style
+\pagestyle{fancy}
+\fancyfoot[L]{\today}
+\fancyfoot[C]{}
+\fancyfoot[R]{Ugis Lacis}
+\fancyhead[L]{Documentation}
+\fancyhead[C]{3D\_MSE\_bc\_velocity v1.00}
+\fancyhead[R]{Page \thepage}
+
+\usepackage{times}
+%\usepackage{mathptm}
+\usepackage{longtable}
+\usepackage{multirow}
+
+\usepackage{float}  %My added packages [UgisL]
+\usepackage{verbatim}
+\usepackage{url}
+
+% Code inclusion
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{language=C++,
+  aboveskip=3mm,
+  belowskip=3mm,
+  xleftmargin=\parindent,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\scriptsize\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+
+\newcommand{\pd}{\partial}
+\newcommand{\pdt}{\partial_t}
+
+% Package for doing IF clauses withing newcommand
+\usepackage{xstring}
+% Commands for strain and ordering parameters
+\newcommand{\str}[3]{\varepsilon^{#1}_{#2} \left( #3 \right)}
+\newcommand{\ord}{\epsilon}
+\newcommand{\vare}[2]{ #2^{(#1)} }
+%\newcommand{\orde}[2]{\epsilon^{#1} #2^{(#1)} }
+\newcommand{\orde}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ \epsilon #2^{(#1)} }%
+    }[ \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordep}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ + \epsilon #2^{(#1)} }%
+    }[ + \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordest}[1]{\mathcal{O} \left( #1\right)}
+% Package for for loops
+\usepackage{pgffor}
+% Command to print the complete series
+\newcommand{\ordser}[2]{%
+    \foreach \index in {0, ..., #1} {%
+        \ordep{\index}{#2}
+    }
+    + \ldots
+}
+
+
+% Some old commands
+\newcommand{\expp}[1]{\text{e}^{#1}}
+\newcommand{\ms}{\frac{\text{m}}{\text{s}}}
+\newcommand{\mms}{\frac{\text{m}^2}{\text{s}}}
+\newcommand{\muo}{\mu_\circ}
+\newcommand{\re}[1]{#1_{\text{Re}}}
+\newcommand{\im}[1]{#1_{\text{Im}}}
+\providecommand\Div{\mathop{\rm div}\nolimits}                  %%%%%%%%%
+\providecommand\Rot{\mathop{\rm rot}\nolimits}                  %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+
+
+\DeclareMathOperator{\tg}{tg}
+\DeclareMathOperator{\arctg}{arctg}
+
+% Tensoren fett
+\DeclareRobustCommand{\tensor}[1]{{\mbox{\mathversion{bold}\ensuremath{#1}}}}
+
+\def\inputGnumericTable{}
+
+\renewcommand{\figurename}{Fig.}
+
+\begin{document}
+
+\sloppy
+
+\section{General information}
+
+This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC using three-dimensional (3D) structures for porous case, defined and meshed by GMSH software. These coefficients can be used in a 2D cavity solver, provided in module ``2D\_MSE\_bc\_velocity''. If you find this software useful, please cite the corresponding publication <arXiv:1604.02880> (arXiv preprint).
+
+The contents of this module are listed below.
+%[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
+\begin{lstlisting}[language=tex]
+src/3D_MSE_bc_Ksolver.edp                  - script to solve for K tensor
+src/3D_MSE_bc_Lsolver.edp                  - script to solve for L tensor
+src/3D_MSE_bc_parameters.in                - example parameter input file
+src/3D_MSE_bc_gen_geom.py                  - script for geometry definition in GMSH *.geo format
+doc/3D_MSE_bc_velocity.pdf                 - this document
+\end{lstlisting}
+
+In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation.
+
+\section{Instructions for obtaining coefficients}
+
+%\subsection{Parameters, geometry definition and meshing}
+
+In order for the current FreeFem++ scripts to work, the geometry of pore structure and the interface has to be prescribed as a mesh. The current software provides a way to accomplish this task using GMSH *.geo file, which is generated using a Python script. Provided routines can define a fully connected, isotropic network of spheres, connected using cylinders. Parameters for geometry definition of the interface cell, located in file ``3D\_MSE\_bc\_parameters.in'', are:
+\begin{enumerate}
+    \item coordinate of the top boundary of the cell ($ztop$);
+	\item number of periodic structures to include below the interface ($Nbot$);
+    \item solid volume fraction ($theta$);
+    \item ratio between radii of connecting cylinders and hub spheres ($cR/hR$);
+    \item mesh spacing ($dsMin$, $dsMax$).
+\end{enumerate}
+
+The interface is always located at $y = 0$, i.e., at the tip of the solid structure. After defining the required parameters, one has to execute the Python script by typing ``./3D\_MSE\_bc\_gen\_geom.py'', which produces four files
+\begin{lstlisting}[language=tex]
+3D_MSE_bc_parameters.txt                  - complemented parameter file for FreeFem++ solver
+3D_MSE_bc_gen_geomB.geo                   - geometry and mesh definition for bottom part of interface cell
+3D_MSE_bc_gen_geomT.geo                   - geometry and mesh definition for top part of interface cell
+3D_MSE_bc_gen_geomL.geo                   - geometry and mesh definition for Lagrange multipliers
+3D_MSE_bc_gen_geomI.geo                   - geometry and mesh definition for interior cell
+\end{lstlisting}
+The text file ``3D\_MSE\_bc\_parameters.txt'' contains additional parameter, the bottom coordinate of the interface cell, which is computed by the Python script based on the number of periodic structures contained in the interface cell. The mesh can be generated using GMSH from command line
+\begin{lstlisting}[language=tex]
+gmsh -3 3D_MSE_bc_gen_geomX.geo
+\end{lstlisting}
+where $X$ can be $B$, $T$, $L$ or $I$. Alternatively, the GUI of GMSH can be used to load the corresponding *.geo file. In such case, one can see the geometry directly, and the mesh can be generated using Mesh module and pressing on "3D".
+
+After all three mesh files have been generated, the FreeFem++ solvers for $K_{ij}$ and $L_{ijk}$ tensors can be used. The usage is essentially the same as for $2D$ versions, i.e., one can execute in the command line
+\begin{lstlisting}[language=tex]
+FreeFem++-nw 3D_MSE_bc_Ksolver.edp
+\end{lstlisting}
+for finding the $K_{ij}$ field. Similarly, $L_{ijk}$ solver can be executed. The current version use direct solver to solve the resulting linear matrix, which can be found in code snapshot below.
+\begin{lstlisting}[numbers=left,firstnumber=158]
+// Set the solver, solve the system
+set(CoupSYS, solver=sparsesolver);
+real[int] SOL = CoupSYS^-1*RHS;
+\end{lstlisting}
+This is the quickest way to solve the outline problem, if sufficient amount of memory is available. The simulation with test parameters take roughly $50\ GB$ of RAM. If such memory amount is not available, the iterative solver should be employed, possible choice is GMRES solver. To choose it, the code must be modified to read
+\begin{lstlisting}[numbers=left,firstnumber=158]
+// Set the solver, solve the system
+set(CoupSYS, solver=GMRES, eps=1.0e-10);
+real[int] SOL = CoupSYS^-1*RHS;
+\end{lstlisting}
+Solution of the problem will take much longer compared to the direct solver, however, it would now be feasible on computers having only fraction of the original RAM requirements. If the iteration residual statistics are required, the verbosity variable has to be modified accordingly. For example, adding
+\begin{lstlisting}
+// Output more information to screen
+verbosity = 5;
+\end{lstlisting}
+to the beginning of script file, will output enough details to the screen to see progression of GMRES solver. For the weak formulation of the problem and some more comments, reader can check the documentation in module ``2D\_MSE\_bc\_velocity'' of solvers ``2D\_MSE\_bc\_Ksolver.edp'' and ``2D\_MSE\_bc\_Lsolver.edp''.
+
+
+\end{document}
