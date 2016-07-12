@@ -181,13 +181,13 @@ After all three mesh files have been generated, the FreeFem++ solvers for $K_{ij
 FreeFem++-nw 3D_MSE_bc_Ksolver.edp
 \end{lstlisting}
 for finding the $K_{ij}$ field. Similarly, $L_{ijk}$ solver can be executed. The current version use direct solver to solve the resulting linear matrix, which can be found in code snapshot below.
-\begin{lstlisting}[numbers=left,firstnumber=158]
+\begin{lstlisting}[numbers=left,firstnumber=156]
 // Set the solver, solve the system
 set(CoupSYS, solver=sparsesolver);
 real[int] SOL = CoupSYS^-1*RHS;
 \end{lstlisting}
 This is the quickest way to solve the outline problem, if sufficient amount of memory is available. The simulation with test parameters take roughly $50\ GB$ of RAM. If such memory amount is not available, the iterative solver should be employed, possible choice is GMRES solver. To choose it, the code must be modified to read
-\begin{lstlisting}[numbers=left,firstnumber=158]
+\begin{lstlisting}[numbers=left,firstnumber=156]
 // Set the solver, solve the system
 set(CoupSYS, solver=GMRES, eps=1.0e-10);
 real[int] SOL = CoupSYS^-1*RHS;

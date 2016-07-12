@@ -45,8 +45,6 @@ param >> zmin;
 }
 // Output parameters on screen
 cout << "Finished reading parameters, z in (" << zmin << "," << zmax << "), theta = " << theta << endl;
-// Define a string denoting the current case
-string meshFix = "theta"+theta;
 
 // Problem indices
 int indk = 1;
@@ -172,7 +170,7 @@ real L3BL  = int2d(Th3B,levelset=(z+1e-6    ))( wb );
 
 // Save the result in a txt file (zintf, L1ij, L2ij, L3ij, CoTop, CoBot)
 {
-    ofstream resfile("3DfluidStokesIntfLi"+indk+indl+meshFix+"_intf.txt",append);
+    ofstream resfile("3D_MSE_bc_Li"+indk+indl+"_intf.txt",append);
     resfile << "# zintf, L1kl, L2kl, L3kl" << endl;
     resfile << 0.0 << " " << L1BL << " " << L2BL << " " << L3BL << endl;
 }
@@ -204,7 +202,7 @@ for (int i=0; i<Nsamp; i++){
 }
 // Save the data to text file
 {
-    ofstream resfile("3DfluidStokesIntfLi"+indk+indl+meshFix+"_prof.txt");
+    ofstream resfile("3D_MSE_bc_Li"+indk+indl+"_prof.txt");
     resfile << "# interface coord = " << 0.0 << ", z, u, v, w, p, p^i" << endl;
     for (int i=0; i<Nsamp; i++) resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " " << PlaneUavg(3,i) << " "
                                         << PlaneUavg(4,i) << " " << PlaneUavg(5,i) << endl;

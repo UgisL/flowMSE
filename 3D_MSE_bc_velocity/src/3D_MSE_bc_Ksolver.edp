@@ -45,8 +45,6 @@ param >> zmin;
 }
 // Output parameters on screen
 cout << "Finished reading parameters, z in (" << zmin << "," << zmax << "), theta = " << theta << endl;
-// Define a string denoting the current case
-string meshFix = "theta"+theta;
 
 // Problem index
 int indk = 1;
@@ -184,7 +182,7 @@ real K3d  = int3d(Th3I)( wper );
 
 // Save the result in a txt file (zintf, K1i, K2i, K3i, iK1k, iK2k, iK3k)
 {
-    ofstream resfile("3DfluidStokesIntfKi"+indk+meshFix+"_intf.txt",append);
+    ofstream resfile("3D_MSE_bc_Ki"+indk+"_intf.txt",append);
     resfile << "# zintf, K1k, K2k, K3k, iK1k, iK2k, iK3k " << endl;
     resfile << 0.0 << " " << K1BL << " " << K2BL << " " << K3BL << " " << K1d <<  " " << K2d <<  " " << K3d << endl;
 }
@@ -216,7 +214,7 @@ for (int i=0; i<Nsamp; i++){
 }
 // Save the data to text file
 {
-    ofstream resfile("3DfluidStokesIntfKi"+indk+meshFix+"_prof.txt");
+    ofstream resfile("3D_MSE_bc_Ki"+indk+"_prof.txt");
     resfile << "# interface coord = " << 0.0 << ", z, u, v, w, p, p^i" << endl;
     for (int i=0; i<Nsamp; i++) resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " " << PlaneUavg(3,i) << " "
                                         << PlaneUavg(4,i) << " " << PlaneUavg(5,i) << endl;
