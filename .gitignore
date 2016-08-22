@@ -17,3 +17,5 @@ README.*
 # Ignore gmsh geometry definitions and mesh files
 **/*.geo
 **/*.msh
+# Ignore some temporary files beggining with "_"
+**/._*
