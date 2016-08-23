@@ -253,4 +253,59 @@ For the final remark, we have observed that
 construction of Lagrange multipliers is different. Before we saw that transpose operation was always sufficient (and required) for accurate solution. However, in this case, one has to explicitly define that forcing from velocity boundary condition acts only on velocities (and not on derivatives of velocity or pore pressure), while pressure boundary condition for pore pressure equation acts only as forcing in the pore pressure equation.
 Otherwise, the weak form and solver is constructed exactly as described in the previous section.
 
+\section{Issue: fluid stress tensor in weak form}
+
+The authors think that it is their responsibility to warn potential users of this software
+that the FreeFem++ might be in some cases sensitive to exact form in which the weak form 
+of the fluid stress tensor is written. It seems that it could be a bug in the software.
+
+To illustrate the issue, we consider fluid stress tensor written in two forms, as shown below.
+\begin{lstlisting}
+// Fluid viscous and pressure part                                                                                                                            
+varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                                           - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
+                                                           +         p*dx(uu)
+                                                           +         p*dy(vv)
+                                                           + (dx(u)+dy(v))*pp    );
+                                                           
+// Fluid viscous and pressure part                                                                                                                            
+varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                                           - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
+                                                           + (dx(u)+dy(v))*pp    );
+\end{lstlisting}
+
+Running the solver for $\mathcal{L}_{112}$ coefficient using parameters $\phi = 0.02$ and $y_s = 0.1$ yields results of
+\begin{align}
+\mathcal{L}^{(1)}_{112} & = 0.166932, \\
+\mathcal{L}^{(2)}_{112} & = 0.178310,
+\end{align}
+for the first and second form, respectively.
+%The difference of around $6\%$ is considerable, bearing in mind that exactly the same physical
+%problem has been solved.
+We have observed that this difference decreases, as interface coordinate 
+$y_s$ is increased, or the interface is moved up. 
+We have also observed that only $L$ solver is
+affected by this bug. Results from the $K$ solver are identical using both stress forms.
+This behaviour has been confirmed to exists in FreeFem++ versions $3.46$ and $3.37$. In order to determine, which version is correct, we compare results with literature, paper by Carraro, Thomas,
+et al. ``Pressure jump interface law for the Stokes--Darcy coupling: confirmation by direct
+numerical simulations.'' J. of Fluid Mech. 732 (2013): 510-536. Based on results shown in
+Tab.~\ref{tab:chan-slip-comp-cavity}, we have concluded that second stress expression yields
+accurate results.
+
+\begin{table}[h!]
+  \begin{center}
+ \begin{tabular}{ | c | c |}
+ \hline
+ Literature & $-C_{1,h}^{bl} = 0.303821942379 \pm 2 \cdot 10^{-12}$ \\
+ \hline
+ Stress expression 1 & $ \mathcal{L}^{1)}_{112} = 0.297088 $ \\
+ \hline
+ Stress expression 2 & $ \mathcal{L}^{(2)}_{112} = 0.303857 $ \\
+ \hline
+  \end{tabular}
+    \caption{Comparison of interface cell results to literature.}
+  \label{tab:chan-slip-comp-cavity}
+  \end{center}
+\end{table}
+
 \end{document}
