@@ -288,8 +288,8 @@ We have also observed that only $L$ solver is
 affected by this bug. Results from the $K$ solver are identical using both stress forms.
 This behaviour has been confirmed to exists in FreeFem++ versions $3.46$ and $3.37$. In order to determine, which version is correct, we compare results with literature, paper by Carraro, Thomas,
 et al. ``Pressure jump interface law for the Stokes--Darcy coupling: confirmation by direct
-numerical simulations.'' J. of Fluid Mech. 732 (2013): 510-536. Based on results shown in
-Tab.~\ref{tab:chan-slip-comp-cavity}, we have concluded that second stress expression yields
+numerical simulations.'' J. Fluid Mech. 732 (2013): 510-536. Based on results shown in
+Tab.~\ref{tab:chan-slip-comp-cavity}, we have concluded that second stress form yields
 accurate results.
 
 \begin{table}[h!]
@@ -298,9 +298,9 @@ accurate results.
  \hline
  Literature & $-C_{1,h}^{bl} = 0.303821942379 \pm 2 \cdot 10^{-12}$ \\
  \hline
- Stress expression 1 & $ \mathcal{L}^{1)}_{112} = 0.297088 $ \\
+ Stress form 1 & $ \mathcal{L}^{(1)}_{112} = 0.297088 $ \\
  \hline
- Stress expression 2 & $ \mathcal{L}^{(2)}_{112} = 0.303857 $ \\
+ Stress form 2 & $ \mathcal{L}^{(2)}_{112} = 0.303857 $ \\
  \hline
   \end{tabular}
     \caption{Comparison of interface cell results to literature.}
