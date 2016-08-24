@@ -161,19 +161,32 @@ UUUPhT [ut,vt,wt,pt];
 UUUPhB [ub,vb,wb,pb];
 
 // Extract results
-ut[] = SOL(0:UUUPhT.ndof);
-vt[] = SOL(0:UUUPhT.ndof);
-wt[] = SOL(0:UUUPhT.ndof);
-pt[] = SOL(0:UUUPhT.ndof);
+ut[] = SOL(0:UUUPhT.ndof-1);
+vt[] = SOL(0:UUUPhT.ndof-1);
+wt[] = SOL(0:UUUPhT.ndof-1);
+pt[] = SOL(0:UUUPhT.ndof-1);
 ub[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
 vb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
 wb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
 pb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
 
-// Do integrals for interface coefficients
-real K1BL  = int2d(Th3B,levelset=(z+1e-6    ))( ub );
-real K2BL  = int2d(Th3B,levelset=(z+1e-6    ))( vb );
-real K3BL  = int2d(Th3B,levelset=(z+1e-6    ))( wb );
+// Do integrals for boundary condition coefficients at the interface with fluid
+int  Nbox   = 50;
+real dzstep = 1.0/Nbox;
+real[int] smpval(Nbox+1);
+real tmpval = 0;
+// The integral in the interface-normal direciton is carried out using trapezoidal rule
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( ut );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K1BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( vt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K2BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( wt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K3BL = tmpval;
 
 // Do integrals for interior coefficients
 real K1d  = int3d(Th3I)( uper );

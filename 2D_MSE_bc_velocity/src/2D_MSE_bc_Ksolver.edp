@@ -36,7 +36,7 @@ int n=10;
 int nIntf = 4;
 
 // Definition of solid volume fraction
-real thetas = 0.15;
+real thetas = 0.02;
 real cylr   = sqrt(thetas/pi);
 
 // Box size
@@ -44,14 +44,14 @@ real ymin =-4.5-cylr;
 real ymax = 5.0;
 
 // Problem index
-int indk = 2;
+int indk = 1;
 
 // Sampling rate of vertical distance unit length
 int Nsamp = 60;
 
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
-real intfShft = 0.5;
+real intfShft = 0.1;
 int  curInd   = 5;
 
 // Check that we are above the first cylinder (requirement for geometry defined below),
@@ -75,12 +75,8 @@ mesh ThP=buildmesh( sqr1p(n*2)+sqr2p(n*2)+sqr3p(n*2)+sqr4p(n*2)+circp(-cylr*pi*n
 fespace UUPhP(ThP,[P2,P2,P1],periodic=[[2,x],[4,x],[1,y],[3,y]]);
 UUPhP [uper,vper,pper], [uu,vv,pp];
 solve stokesK([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
-    int2d(ThP)( - 2.0*dx(uper)*dx(uu) - dy(uper)*dy(uu)
-                -     dy(uper)*dx(vv)
-                -     dx(vper)*dy(uu)
-                - 2.0*dy(vper)*dy(vv) - dx(vper)*dx(vv)
-                +         pper*dx(uu)
-                +         pper*dy(vv)
+    int2d(ThP)( - (-pper + 2.0*dx(uper))*dx(uu) - (dy(uper)+dx(vper))*dy(uu)
+                - (-pper + 2.0*dy(vper))*dy(vv) - (dx(vper)+dy(uper))*dx(vv)
                 + (dx(uper)+dy(vper))*pp - 1.0e-10*pper*pp )
     + int2d(ThP)( (indk==1)*uu+(indk==2)*vv )
     + on(5,uper=0,vper=0);
@@ -130,16 +126,12 @@ fespace UUPhL(ThL,[P1],      periodic=[[1,y],[3,y]]);
 
 // Define variational formulations
 // Fluid viscous and pressure part
-varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                            +         p*dx(uu)
-                                            +         p*dy(vv)
+varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
                                             + (dx(u)+dy(v))*pp    );
-varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                            +         p*dx(uu)
-                                            +         p*dy(vv)
-                                            + (dx(u)+dy(v))*pp - 1e-10*p*pp   ) + on(5,u=0,v=0) + on(4,u=uper,v=vper);
+varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
+                                            + (dx(u)+dy(v))*pp - 1e-10*p*pp   ) + on(5,u=0,v=0) + on(4,u=uper,v=vper); 
 
 // Unknown stresses
 varf strT([u,v,p],[uu,vv,pp]) = int1d(ThT,2,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
@@ -220,16 +212,26 @@ UUPhT [ut,vt,pt];
 UUPhB [ub,vb,pb];
 
 // Extract results
-ut[] = SOL(0:UUPhT.ndof);
-vt[] = SOL(0:UUPhT.ndof);
-pt[] = SOL(0:UUPhT.ndof);
+ut[] = SOL(0:UUPhT.ndof-1);
+vt[] = SOL(0:UUPhT.ndof-1);
+pt[] = SOL(0:UUPhT.ndof-1);
 ub[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 vb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 pb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 
-// Do integrals for boundary condition coefficients at the interface
-real K1BL = int1d(ThT,levelset=(y-intfShft    ))( ut );
-real K2BL = int1d(ThT,levelset=(y-intfShft    ))( vt );
+// Do integrals for boundary condition coefficients at the interface with the fluid
+int  Nbox   = 50;
+real dzstep = 1.0/Nbox;
+real[int] smpval(Nbox+1);
+real tmpval = 0;
+// The integral in the interface-normal direciton is carried out using trapezoidal rule
+for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( ut );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K1BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( vt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K2BL = tmpval;
 
 // Output the result to screen
 cout << "yintf = " << intfShft << ", K1"+indk+"BL = " << K1BL << ", K2"+indk+"BL = " << K2BL << endl;

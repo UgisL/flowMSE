@@ -38,7 +38,7 @@ int nIntf = 4;
 // Definition of solid volume fraction
 real thetas = 0.02;
 real cylr = sqrt(thetas/pi);
-
+    
 // Box size
 real ymin =-4.5-cylr;
 real ymax = 5.0;
@@ -52,7 +52,7 @@ int Nsamp = 60;
 
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
-real intfShft = 0.5;
+real intfShft = 0.1;
 int  curInd   = 5;
 
 // Check that we are above the first cylinder (requirement for geometry defined below),
@@ -106,16 +106,13 @@ fespace UUPhL(ThL,[P1],      periodic=[[1,y],[3,y]]);
 
 // Define variational formulations
 // Fluid viscous and pressure part
-varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                            +         p*dx(uu)
-                                            +         p*dy(vv)
+varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
                                             + (dx(u)+dy(v))*pp    );
-varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - 2.0*dy(v)*dy(vv) - (dx(v)+dx(v))*dx(vv)
-                                            +         p*dx(uu)
-                                            +         p*dy(vv)
+varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
+                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
                                             + (dx(u)+dy(v))*pp - 1e-10*p*pp   ) + on(4,5,u=0,v=0);
+
 
 // Adding unknown stresses!
 varf strT([u,v,p],[uu,vv,pp]) = int1d(ThT,2,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
@@ -193,16 +190,26 @@ UUPhT [ut,vt,pt];
 UUPhB [ub,vb,pb];
 
 // Extract results
-ut[] = SOL(0:UUPhT.ndof);
-vt[] = SOL(0:UUPhT.ndof);
-pt[] = SOL(0:UUPhT.ndof);
+ut[] = SOL(0:UUPhT.ndof-1);
+vt[] = SOL(0:UUPhT.ndof-1);
+pt[] = SOL(0:UUPhT.ndof-1);
 ub[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 vb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 pb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
 
-// Do integrals for boundary condition coefficients at the interface
-real L1BL = int1d(ThT,levelset=(y-intfShft    ))( ut );
-real L2BL = int1d(ThT,levelset=(y-intfShft    ))( vt );
+// Do integrals for boundary condition coefficients at the interface with the fluid
+int  Nbox   = 50;
+real dzstep = 1.0/Nbox;
+real[int] smpval(Nbox+1);
+real tmpval = 0;
+// The integral in the interface-normal direciton is carried out using trapezoidal rule
+for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( ut );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real L1BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( vt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real L2BL = tmpval;
 
 cout << "yintf = " << intfShft << ", L1"+indk+indl+"BL = " << L1BL << ", L2"+indk+indl+"BL = " << L2BL << endl;
 
