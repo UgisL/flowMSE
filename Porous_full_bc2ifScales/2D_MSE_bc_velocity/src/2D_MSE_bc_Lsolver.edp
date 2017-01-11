@@ -3,30 +3,30 @@
 // Ugis Lacis, ugis.lacis@gmail.com
 // Shervin Bagheri, shervin.bagheri@mech.kth.se
 // -------------------------------------------- LICENSE LGPLv3 ------------------------------------
-// This file is part of flowMSE.
+// This file is part of Porous_full_bc2ifScales.
 //
-// flowMSE is free software: you can redistribute it and/or modify
+// Porous_full_bc2ifScales is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// flowMSE is distributed in the hope that it will be useful,
+// Porous_full_bc2ifScales is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with flowMSE. If not, see <http://www.gnu.org/licenses/>.
+// along with Porous_full_bc2ifScales. If not, see <http://www.gnu.org/licenses/>.
 // ---------------------------------------------- DESCRIPTION -------------------------------------
 //
 // This software is meant to be executed using FreeFem++. You should have recieved a copy
-// of it along with flowMSE. If not, get it from <http://www.freefem.org/>.
+// of it along with Porous_full_bc2ifScales. If not, get it from <http://www.freefem.org/>.
 //
 // It has been tested to produce accurate results using FreeFem++ version 3.37.
 //
 // Execute this file by running "FreeFem++ 2D_MSE_bc_Lsolver.edp" in command line (Unix) or
 // open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
-// documentation in <doc/> or documentation of FreeFem++.
+// documentation in <doc/> and documentation of FreeFem++.
 
 load "UMFPACK64"
 

@@ -1,5 +1,5 @@
 
-This is README file of software Porous_full_bc2ifScales.
+This is README file of software Poroelastic_fill_strCont.
 
 This software is a script compilation for FreeFem++ <http://www.freefem.org/>
 to solve interface cell problems and arrive with coefficients in boundary
@@ -8,7 +8,7 @@ for lid-driven macroscale problem using those boundary conditions. If you find
 this software useful, please cite the corresponding publication <arXiv:1604.02880>
 (arXiv preprint) or <> (under consideration for JFM).
 
-The Porous_full_bc2ifScales software is licensed under LGPLv3 license.
+The Poroelastic_fill_strCont software is licensed under LGPLv3 license.
 
 --------------------------------------------------------------------------------
  Contents

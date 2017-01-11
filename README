@@ -9,12 +9,16 @@ poroelastic materials.
  Contents
 --------------------------------------------------------------------------------
 
-This software repository currently has two softwares:
+This software repository currently has two software packadges, connected with
+different scientific contributions:
 Porous_full_bc2ifScales    -- software for porous structures with 2 interface
                               velocity scales
+                              Associated scientific contributions:
+                              <arXiv:1604.02880>
 Poroelastic_fill_strCont   -- software for poroelastic structures with
                               bc2ifScales velocity condition and stress
-                              continuity condition (will appear soon)
+                              continuity condition
+                              (will appear soon)
 
 For more detailed information of each software, consult the corresponding
 README file within the software directory.
