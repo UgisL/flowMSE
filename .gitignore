@@ -7,7 +7,7 @@
 **/*.aux
 **/*.log
 **/*.out
-**/*.gz
+**/*.synctex.gz
 # ignore snapshots
 **/*.zip
 # ignore MacOS store files

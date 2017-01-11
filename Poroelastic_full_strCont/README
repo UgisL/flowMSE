@@ -6,7 +6,7 @@ to solve interface cell problems and arrive with coefficients in boundary
 condition (BC) between porous medium and free fluid. It also allows to solve
 for lid-driven macroscale problem using those boundary conditions. If you find
 this software useful, please cite the corresponding publication <arXiv:1604.02880>
-(arXiv preprint) or <> (under consideration for JFM).
+(arXiv preprint) or <> (under consideration for Proc. Roy. Soc. A).
 
 The Poroelastic_fill_strCont software is licensed under LGPLv3 license.
 
