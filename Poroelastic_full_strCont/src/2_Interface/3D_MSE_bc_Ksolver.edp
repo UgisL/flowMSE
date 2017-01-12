@@ -1,0 +1,238 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2017
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Poroelastic_full_strCont.
+//
+// Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Poroelastic_full_strCont is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with Poroelastic_full_strCont. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 3D_MSE_bc_Ksolver.edp" in command line (Unix) or
+// open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
+// documentation in <doc/> and documentation of FreeFem++.
+
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the parameters from file
+real zmax, zmin, theta, tmp;
+{
+ifstream param("../0_setup/3D_MSE_parameters.in");
+param >> zmax; param >> zmin;
+}
+zmin = -zmin;
+// Output parameters on screen
+cout << "Finished reading parameters, z in (" << zmin << "," << zmax << ")" << endl;
+
+// Problem index
+int indk = 1;
+
+// Reference sampling rate of vertical distance 
+int Nsamp = 60;
+
+// Macros for convenient stress tensor representation
+macro epsilon(v1,v2,v3) [dx(v1),dy(v2),dz(v3),(dy(v1)+dx(v2))/sqrt(2),(dz(v1)+dx(v3))/sqrt(2),(dz(v2)+dy(v3))/sqrt(2)] //
+macro div(v1,v2,v3) ( dx(v1)+dy(v2)+dz(v3) ) //
+// Macros for boundary stress components
+macro fx(n1,n2,n3) (  (-p+2*dx(u)      )*n1 + (     dy(u)+dx(v))*n2 + (     dz(u)+dx(w))*n3 ) //
+macro fy(n1,n2,n3) (  (     dy(u)+dx(v))*n1 + (-p+2*dy(v)      )*n2 + (     dz(v)+dy(w))*n3 ) //
+macro fz(n1,n2,n3) (  (     dz(u)+dx(w))*n1 + (     dy(w)+dz(v))*n2 + (-p+2*dz(w)      )*n3 ) //
+
+// Read the interior mesh
+mesh3 Th3I=gmshload3("../0_setup/3D_MSE_gen_geomI.msh");
+// Define the interior FE space and variables
+fespace UUUPhI (Th3I, [P2,P2,P2,P1],periodic=[[3001,y,z],[3002,y,z],[3003,x,z],[3004,x,z],[3005,x,y],[3006,x,y]]);
+UUUPhI [uper,vper,wper,pper], [uu,vv,ww,pp];
+// Solve the interior problem
+solve stokesI([uper,vper,wper,pper],[uu,vv,ww,pp],solver=sparsesolver) =
+      int3d(Th3I)( pper*div(uu,vv,ww)-2*epsilon(uper,vper,wper)'*epsilon(uu,vv,ww) + div(uper,vper,wper)*pp - 1.0e-10*pper*pp ) // (Fluid's stress and divergence)
+    + int3d(Th3I)( ((indk==1)*uu+(indk==2)*vv+(indk==3)*ww) )
+    + on(3007,uper=0,vper=0,wper=0);
+
+
+// Read the interface cell meshes
+mesh3 Th3T=gmshload3("../0_setup/3D_MSE_gen_geomT.msh");
+mesh3 Th3B=gmshload3("../0_setup/3D_MSE_gen_geomB.msh");
+mesh3 Th3L=gmshload3("../0_setup/3D_MSE_gen_geomL.msh");
+
+
+// Define the corresponding FE spaces, upper part
+fespace UUUPhT (Th3T, [P2,P2,P2,P1],periodic=[[3001,y,z],[3002,y,z],[3003,x,z],[3004,x,z]]);
+fespace UUUPhL (Th3L, [P1],         periodic=[[3001,y,z],[3002,y,z],[3003,x,z],[3004,x,z]]);
+// Define the corresponding FE space, lower part
+fespace UUUPhB (Th3B, [P2,P2,P2,P1],periodic=[[3001 ,y,z],[3002 ,y,z],[30011,y,z],[30021,y,z],
+                                              [30012,y,z],[30022,y,z],[30013,y,z],[30023,y,z],
+                                              [3003 ,x,z],[3004 ,x,z],[30031,x,z],[30041,x,z],
+                                              [30032,x,z],[30042,x,z],[30033,x,z],[30043,x,z]]);
+
+// Define variational formulations
+// Fluid viscous and pressure part
+varf lapT([u,v,w,p],[uu,vv,ww,pp]) = int3d(Th3T)( p*div(uu,vv,ww)-2*epsilon(u,v,w)'*epsilon(uu,vv,ww) + div(u,v,w)*pp ) // (Fluid's stress and divergence)
+                                             +on(3007,u=0,v=0,w=0);
+varf lapB([u,v,w,p],[uu,vv,ww,pp]) = int3d(Th3B)( p*div(uu,vv,ww)-2*epsilon(u,v,w)'*epsilon(uu,vv,ww) + div(u,v,w)*pp - 1.0e-10*p*pp ) // (Fluid's stress and divergence)
+                                             +on(3007,u=0,v=0,w=0) + on(3005,u=uper,v=vper,w=wper);
+
+// Unknown stresses
+varf strT([u,v,w,p],[uu,vv,ww,pp]) = int2d(Th3T,3005)( (fx(N.x,N.y,N.z)*uu+fy(N.x,N.y,N.z)*vv+fz(N.x,N.y,N.z)*ww) );  // At the bottom (must add top, if fancier BC)
+varf strB([u,v,w,p],[uu,vv,ww,pp]) = int2d(Th3B,3006)( (fx(N.x,N.y,N.z)*uu+fy(N.x,N.y,N.z)*vv+fz(N.x,N.y,N.z)*ww) );  // At the top
+
+// Adding volume forcing in the bottom domain
+varf frcB([empty],[uu,vv,ww,pp]) = int3d(Th3B)( -((indk==1)*uu+(indk==2)*vv+(indk==3)*ww) );
+
+// Velocity and pressure continuity at bottom of Lag mesh (3005)
+varf intpIntfU ([u,v,w,p],[bb]) = int2d(Th3L,3005)( u*bb );
+varf intpIntfUn([u,v,w,p],[bb]) = int2d(Th3L,3005)(-u*bb );
+varf intpIntfV ([u,v,w,p],[bb]) = int2d(Th3L,3005)( v*bb );
+varf intpIntfVn([u,v,w,p],[bb]) = int2d(Th3L,3005)(-v*bb );
+varf intpIntfW ([u,v,w,p],[bb]) = int2d(Th3L,3005)( w*bb );
+varf intpIntfWn([u,v,w,p],[bb]) = int2d(Th3L,3005)(-w*bb );
+// Stress boundary conditions and right hand side
+varf intpIntfSu ([u,v,w,p],[bb]) = int2d(Th3L,3005)( fx(N.x,N.y,N.z)*bb );
+varf intpIntfSun([u,v,w,p],[bb]) = int2d(Th3L,3005)(-fx(N.x,N.y,N.z)*bb );
+varf intpIntfSv ([u,v,w,p],[bb]) = int2d(Th3L,3005)( fy(N.x,N.y,N.z)*bb );
+varf intpIntfSvn([u,v,w,p],[bb]) = int2d(Th3L,3005)(-fy(N.x,N.y,N.z)*bb );
+varf intpIntfSw ([u,v,w,p],[bb]) = int2d(Th3L,3005)( fz(N.x,N.y,N.z)*bb );
+varf intpIntfSwn([u,v,w,p],[bb]) = int2d(Th3L,3005)(-fz(N.x,N.y,N.z)*bb );
+// Penalty for unused sides of Lagrangian mesh (labels 3001-4 )
+varf intppenB   ([b],[bb])       = int2d(Th3L,3001,3002,3003,3004,3006,3007)( -1e-10*b*bb );
+varf intppenBv  ([b],[bb])       = int3d(Th3L)                              ( -1e-10*b*bb );
+
+// Construct the main matrix
+matrix CoupSYS;
+{
+    // Construct fluid sub-matrices
+    matrix L1 = lapT(UUUPhT,UUUPhT); matrix L1s = strT(UUUPhT,UUUPhT);
+    L1=L1+L1s;
+    matrix L2 = lapB(UUUPhB,UUUPhB); matrix L2s = strB(UUUPhB,UUUPhB);
+    L2=L2+L2s;
+    matrix B1 = intpIntfU (UUUPhT,UUUPhL); matrix B1n = intpIntfUn (UUUPhB,UUUPhL);
+    matrix B2 = intpIntfV (UUUPhT,UUUPhL); matrix B2n = intpIntfVn (UUUPhB,UUUPhL);
+    matrix B3 = intpIntfW (UUUPhT,UUUPhL); matrix B3n = intpIntfWn (UUUPhB,UUUPhL);
+    matrix B4 = intpIntfSu(UUUPhT,UUUPhL); matrix B4n = intpIntfSun(UUUPhB,UUUPhL);
+    matrix B5 = intpIntfSv(UUUPhT,UUUPhL); matrix B5n = intpIntfSvn(UUUPhB,UUUPhL);
+    matrix B6 = intpIntfSw(UUUPhT,UUUPhL); matrix B6n = intpIntfSwn(UUUPhB,UUUPhL);
+    matrix BPT= intppenB  (UUUPhL,UUUPhL); matrix BPTv= intppenBv  (UUUPhL,UUUPhL);
+    BPT=BPT+BPTv;
+
+    CoupSYS = [ [ L1,  0,  B1', B2', B3', B4', B5', B6' ], // [ Dummy comment for Emac's happiness ] 
+                [ 0,  L2,  B1n',B2n',B3n',B4n',B5n',B6n'],
+                [ B1, B1n, BPT, 0,   0,   0,   0,   0   ],
+                [ B2, B2n, 0,   BPT, 0,   0,   0,   0   ],
+                [ B3, B3n, 0,   0,   BPT, 0,   0,   0   ],
+                [ B4, B4n, 0,   0,   0,   BPT, 0,   0   ],
+                [ B5, B5n, 0,   0,   0,   0,   BPT, 0   ],
+                [ B6, B6n, 0,   0,   0,   0,   0,   BPT ]];
+}
+
+real[int] RHS(UUUPhT.ndof+UUUPhB.ndof+6*UUUPhL.ndof);
+{
+    RHS(0:UUUPhT.ndof+UUUPhB.ndof+6*UUUPhL.ndof-1) = 0;
+    RHS(0:UUUPhT.ndof-1)                           = lapT(0,UUUPhT);
+    RHS(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1)     = lapB(0,UUUPhB);
+    real[int] FrcArr                               = frcB(0,UUUPhB);
+    RHS(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1)     = RHS(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1) + FrcArr;
+}
+
+// Set the solver, solve the system
+set(CoupSYS, solver=sparsesolver);
+real[int] SOL = CoupSYS^-1*RHS;
+
+UUUPhT [ut,vt,wt,pt];
+UUUPhB [ub,vb,wb,pb];
+
+// Extract results
+ut[] = SOL(0:UUUPhT.ndof-1);
+vt[] = SOL(0:UUUPhT.ndof-1);
+wt[] = SOL(0:UUUPhT.ndof-1);
+pt[] = SOL(0:UUUPhT.ndof-1);
+ub[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
+vb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
+wb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
+pb[] = SOL(UUUPhT.ndof:UUUPhT.ndof+UUUPhB.ndof-1);
+
+// Do integrals for boundary condition coefficients at the interface with fluid
+int  Nbox   = 50;
+real dzstep = 1.0/Nbox;
+real[int] smpval(Nbox+1);
+real tmpval = 0;
+// The integral in the interface-normal direciton is carried out using trapezoidal rule
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( ut );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K1BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( vt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K2BL = tmpval;
+tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int2d(Th3T,levelset=(z-zmax+1.0e-6+i*dzstep))( wt );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+real K3BL = tmpval;
+
+// Do integrals for interior coefficients
+real K1d  = int3d(Th3I)( uper );
+real K2d  = int3d(Th3I)( vper );
+real K3d  = int3d(Th3I)( wper );
+
+// Save the result in a txt file (zintf, K1i, K2i, K3i, iK1k, iK2k, iK3k)
+{
+    ofstream resfile("3D_MSE_bc_Ki"+indk+"_intf.txt",append);
+    resfile << "# zintf, K1k, K2k, K3k, iK1k, iK2k, iK3k " << endl;
+    resfile << 0.0 << " " << K1BL << " " << K2BL << " " << K3BL << " " << K1d <<  " " << K2d <<  " " << K3d << endl;
+}
+// Sample the results, adjust number of samples according to vertical height
+Nsamp = Nsamp*(zmax-zmin);
+real[int,int] PlaneUavg(6,Nsamp);
+// Post-processing velocity profile
+for (int i=0; i<Nsamp; i++){
+    // Coordinate
+    PlaneUavg(0,i) = zmin+1e-6 + i*(zmax-zmin-2e-6)/(Nsamp-0.99);
+
+    // Integral using level set
+    if(PlaneUavg(0,i) >= 0.0)
+    {
+        PlaneUavg(1,i) = int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( ut );
+        PlaneUavg(2,i) = int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( vt );
+        PlaneUavg(3,i) = int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( wt );
+        PlaneUavg(4,i) = int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( pt );
+        PlaneUavg(5,i) = int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( pt ) / int2d(Th3T,levelset=(z-PlaneUavg(0,i)))( 1.0 );
+    }
+    else
+    {
+        PlaneUavg(1,i) = int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( ub );
+        PlaneUavg(2,i) = int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( vb );
+        PlaneUavg(3,i) = int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( wb );
+        PlaneUavg(4,i) = int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( pb );
+        PlaneUavg(5,i) = int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( pb ) / int2d(Th3B,levelset=(z-PlaneUavg(0,i)))( 1.0 );
+    }
+}
+// Save the data to text file
+{
+    ofstream resfile("3D_MSE_bc_Ki"+indk+"_prof.txt");
+    resfile << "# interface coord = " << 0.0 << ", z, u, v, w, p, p^i" << endl;
+    for (int i=0; i<Nsamp; i++) resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " " << PlaneUavg(3,i) << " "
+                                        << PlaneUavg(4,i) << " " << PlaneUavg(5,i) << endl;
+}
+
+
+

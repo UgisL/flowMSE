@@ -1,0 +1,84 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2017
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Poroelastic_full_strCont.
+//
+// Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Poroelastic_full_strCont is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with Poroelastic_full_strCont. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 3D_interiorK_solver.edp" in command line (Unix) or
+// open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
+// documentation in <doc/> and documentation of FreeFem++. 
+
+verbosity=0;
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the interior mesh
+mesh3 Th3=gmshload3("../0_setup/3D_MSE_gen_geomI.msh");
+
+// Define the problem index
+int indk = 1;
+
+// Define the the permeability matrix
+real [int,int] intrK(3,3);
+
+// Macros for more convenient equation definition
+macro epsilon(v1,v2,v3) [dx(v1),dy(v2),dz(v3),(dy(v1)+dx(v2))/sqrt(2),(dz(v1)+dx(v3))/sqrt(2),(dz(v2)+dy(v3))/sqrt(2)] // 
+macro div(v1,v2,v3) ( dx(v1)+dy(v2)+dz(v3) ) //
+
+// Volume fraction
+real thetas = 1.0 - int3d( Th3 )( 1.0 );
+
+// Define the finite element spaces
+fespace UUUPh(Th3,[P2,P2,P2,P1],periodic=[[3001,y,z],[3002,y,z],
+                                          [3003,x,z],[3004,x,z],
+                                          [3005,x,y],[3006,x,y]]);
+UUUPh [u,v,w,p], [uu,vv,ww,pp];
+
+// Define the permeability problem
+problem permInter([u,v,w,p],[uu,vv,ww,pp],solver=sparsesolver) =
+    int3d(Th3)( p*div(uu,vv,ww)-2*epsilon(u,v,w)'*epsilon(uu,vv,ww) // Dummy's 
+              + div(u,v,w)*pp - 1.0e-10*p*pp ) 
+  + int3d(Th3)( ((indk==1)*uu+(indk==2)*vv+(indk==3)*ww) )
+  + on(3007,u=0,v=0,w=0);
+
+// Loop over different indices and get the permeability matrix
+for(int i=1;i<=3;i++)
+{
+    indk=i;
+    permInter;
+    intrK(i-1,0) = int3d(Th3)( u );
+    intrK(i-1,1) = int3d(Th3)( v );
+    intrK(i-1,2) = int3d(Th3)( w );
+    cout << "Done K problem " << i << endl;
+}
+
+// Save the final result to file
+{
+ofstream rf("3D_interiorK_matrix.txt");
+rf << "Solid volume fraction theta = " << thetas << endl;
+rf << intrK;
+}

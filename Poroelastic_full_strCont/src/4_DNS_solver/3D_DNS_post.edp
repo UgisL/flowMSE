@@ -1,0 +1,193 @@
+verbosity=5;
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the parameters from file
+real zmax, zmin, xmax, xmin, tolSOL, barE, theta, epsP, tmp;
+{
+    ifstream param("3D_DNS_parameters.txt");
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tolSOL;
+    // Here one can compute just the result with barE = 1.0 and get other fields using
+    // linear multiplication, since the solid equations are linear
+    param >> barE;
+    param >> zmin; param >> zmax;
+    param >> xmin; param >> xmax;
+    param >> epsP;
+}
+
+// Top wall driving velocity, constant fluid parameter
+real Uvel = 100.0;
+
+// Solid structure Poisson ratio, constant solid parameter
+// (stainless steel, from wikipedia and engineeringtoolbox)
+real poisR = 0.3;
+
+// Number of samples per unit of length 
+int NsampU = 60;
+int Nsamp;
+    
+// Read the current meshes, fluid and solid
+mesh3 ThCAVf=gmshload3("3D_DNS_gen_geomF.msh");
+mesh3 ThCAVs=gmshload3("3D_DNS_gen_geomS.msh");
+
+// Create the needed FE space and variables
+fespace UUUPhCAV(ThCAVf,[P2,P2,P2,P1],periodic=[[3003,x,z],[3004,x,z]]);
+UUUPhCAV [uf,vf,wf,pf];
+fespace VVVhCAV (ThCAVs,[P2,P2,P2   ],periodic=[[3003,x,z],[3004,x,z]]);
+VVVhCAV  [u ,v ,w ];
+
+// Read the solutions
+{
+    ifstream rf("3D_DNS_solution_init_fluid.dat",binary); 
+    rf >> uf[]; 
+    ifstream rs("3D_DNS_solution_init_solid.dat",binary); 
+    rs >> u[]; 
+}
+
+real xsmp, zsmp, xcur, ycur, zcur;
+real utmp, vtmp, wtmp, ptmp, ltmp;
+int Nsub = 100;
+
+// Sample the solution, flow field, vertical
+fespace FhCAV (ThCAVf,P0);
+FhCAV indF = 1.0;
+xsmp = 0.2*xmax;
+// Rescale the number of samples 
+Nsamp = NsampU*(zmax-zmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_fluid_avgZslice.txt");
+of << "# zmin = " << zmin << ", zmax = " << zmax << endl;
+of << "# z, u, v, w, p, Lf, line probe (y averaged) at x = " << xsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    zcur = zmin+1e-6 + i*(zmax-zmin-2e-6)/(Nsamp-1.0);
+    utmp = vtmp = wtmp = ptmp = ltmp = 0;
+    for(int j=0; j<Nsub; j++)
+    {
+        ycur = -0.5+1e-6 + j*(1.0-2e-6)/(Nsub-1.0);
+        if(j == 0 || j == Nsub-1) utmp = utmp + 0.5*uf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        else                      utmp = utmp +     uf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) vtmp = vtmp + 0.5*vf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        else                      vtmp = vtmp +     vf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) wtmp = wtmp + 0.5*wf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        else                      wtmp = wtmp +     wf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) ptmp = ptmp + 0.5*pf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        else                      ptmp = ptmp +     pf(xsmp,ycur,zcur)*indF(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) ltmp = ltmp + 0.5*indF(xsmp,ycur,zcur);
+        else                      ltmp = ltmp +     indF(xsmp,ycur,zcur);
+    }
+    utmp = utmp/ltmp; vtmp = vtmp/ltmp;
+    wtmp = wtmp/ltmp; ptmp = ptmp/ltmp;
+    of << zcur << " " << utmp << " " << vtmp
+               << " " << wtmp << " " << ptmp << " " << ltmp/(Nsub-1.0) << endl;
+}
+}
+
+// Flow field, horizontal
+zsmp = 0.1;
+// Rescale the number of samples 
+Nsamp = NsampU*(xmax-xmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_fluid_avgXslice.txt");
+of << "# xmin = " << xmin << ", xmax = " << xmax << endl;
+of << "# x, u, v, w, p, Lf, line probe (y averaged) at z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    xcur = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.0);
+    utmp = vtmp = wtmp = ptmp = ltmp = 0;
+    for(int j=0; j<Nsub; j++)
+    {
+        ycur = -0.5+1e-6 + j*(1.0-2e-6)/(Nsub-1.0);
+        if(j == 0 || j == Nsub-1) utmp = utmp + 0.5*uf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        else                      utmp = utmp +     uf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) vtmp = vtmp + 0.5*vf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        else                      vtmp = vtmp +     vf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) wtmp = wtmp + 0.5*wf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        else                      wtmp = wtmp +     wf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) ptmp = ptmp + 0.5*pf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        else                      ptmp = ptmp +     pf(xcur,ycur,zsmp)*indF(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) ltmp = ltmp + 0.5*indF(xcur,ycur,zsmp);
+        else                      ltmp = ltmp +     indF(xcur,ycur,zsmp);
+
+    }
+    utmp = utmp/ltmp; vtmp = vtmp/ltmp;
+    wtmp = wtmp/ltmp; ptmp = ptmp/ltmp;
+    of << xcur << " " << utmp << " " << vtmp
+               << " " << wtmp << " " << ptmp << " " << ltmp/(Nsub-1.0) << endl;
+}
+}
+
+
+// Sample the solid solution, vertical
+fespace ShCAV (ThCAVs,P0);
+ShCAV indS = 1.0;
+// Sampling coordinate
+xsmp = 0.3*xmax;
+// Rescale the number of samples 
+Nsamp = NsampU*(0.0-zmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_solid_avgZslice.txt");
+of << "# zmin = " << zmin << ", zmax = " << 0.0 << endl;
+of << "# z, u, v, w, Ls, line probe (y averaged) at x = " << xsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    zcur = zmin+1e-6 + i*(0.0-zmin-2e-6)/(Nsamp-1.0);
+    utmp = vtmp = wtmp = ltmp = 0;
+    for(int j=0; j<Nsub; j++)
+    {
+        ycur = -0.5+1e-6 + j*(1.0-2e-6)/(Nsub-1.0);
+        if(j == 0 || j == Nsub-1) utmp = utmp + 0.5*u(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        else                      utmp = utmp +     u(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) vtmp = vtmp + 0.5*v(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        else                      vtmp = vtmp +     v(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) wtmp = wtmp + 0.5*w(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        else                      wtmp = wtmp +     w(xsmp,ycur,zcur)*indS(xsmp,ycur,zcur);
+        if(j == 0 || j == Nsub-1) ltmp = ltmp + 0.5*indS(xsmp,ycur,zcur);
+        else                      ltmp = ltmp +     indS(xsmp,ycur,zcur);
+    }
+    utmp = utmp/ltmp; vtmp = vtmp/ltmp; wtmp = wtmp/ltmp;
+    of << zcur << " " << utmp << " " << vtmp
+               << " " << wtmp << " " << ltmp/(Nsub-1.0) << endl;
+}
+}
+
+// Solid solution, horizontal
+zsmp = -0.5;
+// Rescale the number of samples 
+Nsamp = NsampU*(xmax-xmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_solid_avgXslice.txt");
+of << "# xmin = " << xmin << ", xmax = " << xmax << endl;
+of << "# x, u, v, w, Ls, line probe (y averaged) at z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    xcur = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.0);
+    utmp = vtmp = wtmp = ltmp = 0;
+    for(int j=0; j<Nsub; j++)
+    {
+        ycur = -0.5+1e-6 + j*(1.0-2e-6)/(Nsub-1.0);
+        if(j == 0 || j == Nsub-1) utmp = utmp + 0.5*u(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        else                      utmp = utmp +     u(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) vtmp = vtmp + 0.5*v(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        else                      vtmp = vtmp +     v(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) wtmp = wtmp + 0.5*w(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        else                      wtmp = wtmp +     w(xcur,ycur,zsmp)*indS(xcur,ycur,zsmp);
+        if(j == 0 || j == Nsub-1) ltmp = ltmp + 0.5*indS(xcur,ycur,zsmp);
+        else                      ltmp = ltmp +     indS(xcur,ycur,zsmp);
+    }
+    utmp = utmp/ltmp; vtmp = vtmp/ltmp; wtmp = wtmp/ltmp;
+    of << xcur << " " << utmp << " " << vtmp
+               << " " << wtmp << " " << ltmp/(Nsub-1.0) << endl;
+}
+}

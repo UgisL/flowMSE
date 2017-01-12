@@ -1,0 +1,161 @@
+verbosity=5;
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the parameters from file
+real zmax, zmin, xmax, xmin, tolSOL, barE, theta, epsP, tmp;
+{
+    ifstream param("3D_DNS_parameters.txt");
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tolSOL;
+    // Here one can compute just the result with barE = 1.0 and get other fields using
+    // linear multiplication, since the solid equations are linear
+    param >> barE;
+    param >> zmin; param >> zmax;
+    param >> xmin; param >> xmax;
+    param >> epsP;
+}
+
+// Top wall driving velocity, constant fluid parameter
+real Uvel = 100.0;
+
+// Solid structure Poisson ratio, constant solid parameter
+// (stainless steel, from wikipedia and engineeringtoolbox)
+real poisR = 0.3;
+
+// Number of samples per unit of length 
+int NsampU = 60;
+int Nsamp;
+    
+// Read the current meshes, fluid and solid
+mesh3 ThCAVf=gmshload3("3D_DNS_gen_geomF.msh");
+mesh3 ThCAVs=gmshload3("3D_DNS_gen_geomS.msh");
+
+// Create the needed FE space and variables
+fespace UUUPhCAV(ThCAVf,[P2,P2,P2,P1],periodic=[[3003,x,z],[3004,x,z]]);
+UUUPhCAV [uf,vf,wf,pf];
+fespace VVVhCAV (ThCAVs,[P2,P2,P2   ],periodic=[[3003,x,z],[3004,x,z]]);
+VVVhCAV  [u ,v ,w ];
+
+// Read the solutions
+{
+    ifstream rf("3D_DNS_solution_init_fluid.dat",binary); 
+    rf >> uf[]; 
+    ifstream rs("3D_DNS_solution_init_solid.dat",binary); 
+    rs >> u[]; 
+}
+
+real xsmp, ysmp, zsmp, xcur, ycur, zcur;
+// Sample the solution, flow field, vertical
+xsmp = 0.2*xmax;
+ysmp = 0.35;
+// Rescale the number of samples 
+Nsamp = NsampU*(zmax-zmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_fluid_Zslice.txt");
+of << "# zmin = " << zmin << ", zmax = " << zmax << endl;
+of << "# z, u, v, w, p, line probe at x = " << xsmp << ", y = " << ysmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    zcur = zmin+1e-6 + i*(zmax-zmin-2e-6)/(Nsamp-1.0);
+    of << zcur << " " << uf(xsmp,ysmp,zcur) << " " << vf(xsmp,ysmp,zcur)
+               << " " << wf(xsmp,ysmp,zcur) << " " << pf(xsmp,ysmp,zcur) << endl;
+}
+}
+
+// Flow field, horizontal
+ysmp = 0.0;
+zsmp = 0.1;
+// Rescale the number of samples 
+Nsamp = NsampU*(xmax-xmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_fluid_Xslice.txt");
+of << "# xmin = " << xmin << ", xmax = " << xmax << endl;
+of << "# x, u, v, w, p, line probe at y = " << ysmp << ", z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    xcur = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.0);
+    of << xcur << " " << uf(xcur,ysmp,zsmp) << " " << vf(xcur,ysmp,zsmp)
+               << " " << wf(xcur,ysmp,zsmp) << " " << pf(xcur,ysmp,zsmp) << endl;
+}
+}
+
+// Flow field, in-depth
+xsmp = 0.0;
+zsmp = 0.1;
+// Rescale the number of samples 
+Nsamp = NsampU;
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_fluid_Yslice.txt");
+of << "# ymin = " << -0.5 << ", ymax = " << 0.5 << endl;
+of << "# y, u, v, w, p, line probe at x = " << xsmp << ", z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    ycur = -0.5+1e-6 + i*(1.0-2e-6)/(Nsamp-1.0);
+    of << ycur << " " << uf(xsmp,ycur,zsmp) << " " << vf(xsmp,ycur,zsmp)
+               << " " << wf(xsmp,ycur,zsmp) << " " << pf(xsmp,ycur,zsmp) << endl;
+}
+}
+
+// Sample the solution, solid field, vertical
+xsmp = 0.1*xmax;
+ysmp = 0.0;
+// Rescale the number of samples 
+Nsamp = NsampU*(0.0-zmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_solid_Zslice.txt");
+of << "# zmin = " << zmin << ", zmax = " << 0.0 << endl;
+of << "# z, u, v, w, line probe at x = " << xsmp << ", y = " << ysmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    zcur = zmin+1e-6 + i*(0.0-zmin-2e-6)/(Nsamp-1.0);
+    of << zcur << " " << u(xsmp,ysmp,zcur) << " " << v(xsmp,ysmp,zcur)
+               << " " << w(xsmp,ysmp,zcur) << endl;
+}
+}
+
+// Flow field, horizontal
+ysmp = 0.0;
+zsmp = -0.5;
+// Rescale the number of samples 
+Nsamp = NsampU*(xmax-xmin);
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_solid_Xslice.txt");
+of << "# xmin = " << xmin << ", xmax = " << xmax << endl;
+of << "# x, u, v, w, line probe at y = " << ysmp << ", z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    xcur = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.0);
+    of << xcur << " " << u(xcur,ysmp,zsmp) << " " << v(xcur,ysmp,zsmp)
+               << " " << w(xcur,ysmp,zsmp) << endl;
+}
+}
+
+// Flow field, in-depth
+xsmp =  0.5;
+zsmp = -0.5;
+// Rescale the number of samples 
+Nsamp = NsampU;
+// Probe loop
+{
+ofstream of("3D_DNS_solution_init_solid_Yslice.txt");
+of << "# ymin = " << -0.5 << ", ymax = " << 0.5 << endl;
+of << "# y, u, v, w, line probe at x = " << xsmp << ", z = " << zsmp << endl;
+for(int i=0; i<Nsamp; i++)
+{
+    ycur = -0.5+1e-6 + i*(1.0-2e-6)/(Nsamp-1.0);
+    of << ycur << " " << u(xsmp,ycur,zsmp) << " " << v(xsmp,ycur,zsmp)
+               << " " << w(xsmp,ycur,zsmp) << endl;
+}
+}

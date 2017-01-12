@@ -4,5 +4,75 @@ This is README file of software Poroelastic_fill_strCont.
 This software is a script compilation for FreeFem++ <http://www.freefem.org/>
 to solve interface cell problems and arrive with coefficients in boundary
 condition (BC) between porous medium and free fluid. It also allows to solve
-for lid-driven macroscale problem using those boundary conditions.
+for lid-driven macroscale problem using those boundary conditions. If you find
+this software useful, please cite the corresponding publication <>
+(arXiv preprint) or <> (under consideration for Proc. Roy. Soc. A).
+
+The Poroelastic_fill_strCont software is licensed under LGPLv3 license.
+
+--------------------------------------------------------------------------------
+ Contents
+--------------------------------------------------------------------------------
+
+This software has following directories:
+src/0_setup/                                  - scripts to set-up microscale geometry
+src/1_Interior/                               - scripts to solve for interior properties
+src/2_Interface/                              - scripts to solve for interface coefficients
+src/3_effective_solver/                       - solver for the averaged fields in the problem
+src/4_DNS_solver/                             - used DNS solver and obtained fields
+doc/                                          - documentation
+
+
+--------------------------------------------------------------------------------
+ Quick-start
+--------------------------------------------------------------------------------
+
+(Unix)
+
+--> To obtain the interior and interface coefficients for particular microscale
+geometry:
+    1) In directory "src/0_setup" execute:
+    ./3D_MSE_gen_geom.py
+    gmsh -3 3D_MSE_gen_geomI.geo
+    gmsh -3 3D_MSE_gen_geomIs.geo
+    gmsh -3 3D_MSE_gen_geomB.geo
+    gmsh -3 3D_MSE_gen_geomL.geo
+    gmsh -3 3D_MSE_gen_geomT.geo
+    2) In directory "src/1_Interior" execute
+    FreeFem++ -nw 3D_interiorK_solver.edp
+    FreeFem++ -nw 3D_interiorC_solver.edp
+    3) In directory "src/2_Interface" execute
+    ./3D_MSE_bc_do_all.sh
+
+Now the interior parameters can be found in files "3D_interiorK_matrix.txt" and
+"3D_interiorC_matrices.txt" and the interface parameters can be found in files
+"3D_MSE_bc_Ki*_intf.txt" and "3D_MSE_bc_Li*3_intf.txt", where "*" goes from "1"
+to "3".
+
+--> To execute the solver for effective/averaged model equations and obtain
+the macroscopic flow and displacement fields for cavity problem:
+    1) In directory "src/3_effective_solver" execute:
+    FreeFem++ 2DfluidPEmedium_cavity_UnsteadyNStokes.edp
+
+If the unix machine have graphical interface, this software would first display
+the two generated meshes for both free fluid and poroelastic domains. After the
+end of simulation, the final flow fields and displacement fields are displayed
+using coloured isocountour plots. Also, four line probes are exported as text
+files.
+
+--> To post-process and investigate the DNS fields of the same cavity problem
+    1) In directory "src/4_DNS_solver" execute:
+    tar -xvf 3D_DNS_solution.tar.gz
+    FreeFem++ -nw 3D_DNS_post_line.edp
+    FreeFem++ -nw 3D_DNS_post.edp
+
+Executing these two post-processing tools will give line probes of both raw
+field data and also y-averaged field data. For further post-processing options,
+consult FreeFem++ documentation. For comments on obtaining the DNS fields, see
+the documentation.
+
+(Windows)
+
+The easiest would be to set up Unix environment either through virtual
+machine or MinGW.
 

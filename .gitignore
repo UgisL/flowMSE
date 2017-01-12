@@ -1,8 +1,9 @@
 # ignore generated output txt files
 **/*.txt
-# ingnore generated outpute files
+# ingnore generated output files
 **/*.dat
 **/*.msh
+**/*.FEM
 # ignore LaTeX log files
 **/*.aux
 **/*.log

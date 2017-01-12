@@ -1,0 +1,193 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2017
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Poroelastic_full_strCont.
+//
+// Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Poroelastic_full_strCont is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with Poroelastic_full_strCont. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 3D_interiorC_solver.edp" in command line (Unix) or
+// open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
+// documentation in <doc/> and documentation of FreeFem++.
+
+verbosity=0;
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the interior mesh
+mesh3 Th3=gmshload3("../0_setup/3D_MSE_gen_geomIs.msh");
+
+// Solid volume fraction
+real theta = int3d(Th3)( 1.0 );
+
+// Solid structure Poisson ratio, constant solid parameter
+// (stainless steel, from wikipedia and engineeringtoolbox)
+real poisR = 0.3;
+// Help variables
+real lambda = poisR/((1.0+poisR)*(1.0-2.0*poisR));
+real elastG = 0.5/(1.0+poisR);
+
+// Define the matrix for Jacobian storage and elasticity matrices
+real[int,int] JAC(3,3);
+real[int,int] CijklSk(6,6);
+real[int,int] CijklEf(6,6);
+real[int,int] DivMat (3,3);
+DivMat = 0;
+// Create skeleton elasticity matrix
+for (int i=0; i<6; i++) for( int j=0; j<6; j++) CijklSk(i,j) = 0;
+for (int i=0; i<3; i++) for( int j=0; j<3; j++) CijklSk(i,j) = CijklSk(i,j) + lambda;
+for (int i=0; i<3; i++) CijklSk(i,i) = CijklSk(i,i) + 2.0*elastG;
+for (int i=3; i<6; i++) CijklSk(i,i) = CijklSk(i,i) + elastG;
+
+// Prepare effective elasticity matrix, add contribution from skeleton elasticity
+for (int i=0; i<6; i++) for( int j=0; j<6; j++) CijklEf(i,j) = theta*CijklSk(i,j);
+
+// Create transfer matrix
+int[int,int] TrMat(3,3);
+TrMat(0,0) = 0; TrMat(0,1) = 5; TrMat(0,2) = 4;
+TrMat(1,0) = 5; TrMat(1,1) = 1; TrMat(1,2) = 3;
+TrMat(2,0) = 4; TrMat(2,1) = 3; TrMat(2,2) = 2;
+// Create array to track the filled enteries
+int[int] TrArr(6);
+
+
+// Define CHI problem indices
+int indp = 1;
+int indq = 1;
+
+// Define FE space and functions
+fespace VVVh(Th3,[P2,P2,P2],periodic=[[3001,y,z],[3002,y,z],
+                                      [3003,x,z],[3004,x,z],
+                                      [3005,x,y],[3006,x,y]]);
+VVVh [u,v,w], [uu,vv,ww];
+
+// Macros for more convenient syntax
+macro epsilon(v1,v2,v3) [dx(v1),dy(v2),dz(v3),(dy(v1)+dx(v2))/sqrt(2),(dz(v1)+dx(v3))/sqrt(2),(dz(v2)+dy(v3))/sqrt(2)] //
+macro div(v1,v2,v3) ( dx(v1)+dy(v2)+dz(v3) ) //
+
+// Forcing function
+macro fx(v1,v2,v3) ( -lambda*(indp==indq)*v1
+                     -elastG*( (1==indp)*( (indq==1)*v1+(indq==2)*v2+(indq==3)*v3 )
+                               +(1==indq)*( (indp==1)*v1+(indp==2)*v2+(indp==3)*v3 ) )  )  //
+macro fy(v1,v2,v3) ( -lambda*(indp==indq)*v2
+                     -elastG*( (2==indp)*( (indq==1)*v1+(indq==2)*v2+(indq==3)*v3 )
+                              +(2==indq)*( (indp==1)*v1+(indp==2)*v2+(indp==3)*v3 ) )  )  //
+macro fz(v1,v2,v3) ( -lambda*(indp==indq)*v3
+                     -elastG*( (3==indp)*( (indq==1)*v1+(indq==2)*v2+(indq==3)*v3 )
+                              +(3==indq)*( (indp==1)*v1+(indp==2)*v2+(indp==3)*v3 ) )  )  //
+
+problem elast([u,v,w],[uu,vv,ww],solver=sparsesolver) = 
+    int3d(Th3)( - lambda*div(u,v,w)*div(uu,vv,ww)
+                - 2.0*elastG*( epsilon(u,v,w)'*epsilon(uu,vv,ww) ) ) // (( Dummy's ))
+  + int2d(Th3,3007)( fx(N.x,N.y,N.z)*uu+fy(N.x,N.y,N.z)*vv+fz(N.x,N.y,N.z)*ww ) // Natural b.c.
+  + on(2001,v=0,w=0) + on(2002,u=0,v=0,w=0) + on(2003,v=0); // Point constraints, labels from GMSH
+
+problem elast2([u,v,w],[uu,vv,ww],solver=sparsesolver) = 
+    int3d(Th3)( - lambda*div(u,v,w)*div(uu,vv,ww)
+                - 2.0*elastG*( epsilon(u,v,w)'*epsilon(uu,vv,ww) ) ) // (( Dummy's ))
+  + int2d(Th3,3007)( N.x*uu+N.y*vv+N.z*ww ) // Natural b.c.
+  + on(2001,v=0,w=0) + on(2002,u=0,v=0,w=0) + on(2003,v=0); // Point constraints, labels from GMSH
+
+cout << endl;
+// Do loop over all p and q problems, add the contribution to the elasticity matrix
+for (int i=1; i<=3; i++) {
+    for (int j=1; j<=3; j++) { 
+        indp = i;
+        indq = j;
+        elast;
+
+        JAC(0,0) = int3d(Th3)( dx(u) );
+        JAC(0,1) = int3d(Th3)( dy(u) );
+        JAC(0,2) = int3d(Th3)( dz(u) );
+        JAC(1,0) = int3d(Th3)( dx(v) );
+        JAC(1,1) = int3d(Th3)( dy(v) );
+        JAC(1,2) = int3d(Th3)( dz(v) );
+        JAC(2,0) = int3d(Th3)( dx(w) );
+        JAC(2,1) = int3d(Th3)( dy(w) );
+        JAC(2,2) = int3d(Th3)( dz(w) );
+
+        // Now add contribution to the elasticity matrix
+        if(TrArr(TrMat(i-1,j-1))==0)
+        {
+            for (int k=0; k<6; k++)
+            {
+                CijklEf(k,TrMat(i-1,j-1)) = CijklEf(k,TrMat(i-1,j-1))
+                    + CijklSk(k,0)*JAC(0,0)
+                    + CijklSk(k,1)*JAC(1,1)
+                    + CijklSk(k,2)*JAC(2,2)
+                    + CijklSk(k,3)*(JAC(1,2)+JAC(2,1))
+                    + CijklSk(k,4)*(JAC(0,2)+JAC(2,0))
+                    + CijklSk(k,5)*(JAC(0,1)+JAC(1,0));
+            }
+            TrArr(TrMat(i-1,j-1)) = 1;
+        }
+        // Now add contribution to the divergence matrix
+        DivMat(i-1,j-1) = JAC(0,0)+JAC(1,1)+JAC(2,2);
+        cout << "Done problem p"+i+"q"+j << endl;
+    }
+}
+
+// Eta problem
+elast2;
+
+JAC(0,0) = int3d(Th3)( dx(u) );
+JAC(0,1) = int3d(Th3)( dy(u) );
+JAC(0,2) = int3d(Th3)( dz(u) );
+JAC(1,0) = int3d(Th3)( dx(v) );
+JAC(1,1) = int3d(Th3)( dy(v) );
+JAC(1,2) = int3d(Th3)( dz(v) );
+JAC(2,0) = int3d(Th3)( dx(w) );
+JAC(2,1) = int3d(Th3)( dy(w) );
+JAC(2,2) = int3d(Th3)( dz(w) );
+
+// Construct alpha interior matrix
+real[int,int] alph(3,3);
+for(int i=0; i<3; i++) for(int j=0; j<3; j++) alph(i,j) = 0.0;
+for(int i=0; i<3; i++)                        alph(i,i) = 1.0-theta;
+// Add contribution from Eta solution
+for(int i=0; i<3; i++) for(int j=0; j<3; j++)
+{
+    alph(i,j) = alph(i,j) + CijklSk(TrMat(i,j),0)*JAC(0,0)
+                          + CijklSk(TrMat(i,j),1)*JAC(1,1)
+                          + CijklSk(TrMat(i,j),2)*JAC(2,2)
+                          + CijklSk(TrMat(i,j),3)*(JAC(1,2)+JAC(2,1))
+                          + CijklSk(TrMat(i,j),4)*(JAC(0,2)+JAC(2,0))
+                          + CijklSk(TrMat(i,j),5)*(JAC(0,1)+JAC(1,0));
+}
+// Divergence of the eta field
+real divEta  = JAC(0,0)+JAC(1,1)+JAC(2,2);
+cout << "Done problem eta" << endl;
+
+// Save the results
+{
+ofstream rf("3D_interiorC_matrices.txt");
+rf << "Solid volume fraction thetas = " << theta << endl << endl;
+rf << "Skeleton Cijkl = " << CijklSk << endl;
+rf << "Effective interior Cijkl = " << CijklEf << endl;
+rf << "Effective interior ALPHAij = " << alph << endl;
+rf << "Effective interior divChi = " << DivMat << endl;
+rf << "Effective interior divEta = " << divEta << endl;
+}
+

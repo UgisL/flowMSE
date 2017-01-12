@@ -1,0 +1,514 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2017
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Poroelastic_full_strCont.
+//
+// Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Poroelastic_full_strCont is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with Poroelastic_full_strCont. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 2DfluidPEmedium_cavity_UnsteadyNStokes.edp" in command
+// line (Unix) or open it by graphical FreeFem++ dialogue (Windows).  For more detailed description,
+// consult documentation in <doc/> and documentation of FreeFem++.
+
+verbosity=0;
+//verbosity=5;
+//verbosity=20;
+
+load "UMFPACK64"
+load "iovtk"
+load "gmsh"
+load "lapack"
+
+// Simulation parameters
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Note possible causes of instability - too low elasticity modulus barE (wrt epsP?)
+//                                     - too high Re (u magnitude) number (reduce dt, increse n, increse barE)
+// ------------------------------------------------------------------------------------------------------------------------------------
+// System properties
+string    solver = "Timedep";            // Switching between "Steady" and "Timedep" solvers
+string    caseFix= "Pcont2a";            // Current simulation descriptor
+int       n      = 5;                    // Mesh resolution
+int       nL     = 2;                    // Lagrange multipliers with twice the resolution (should NOT be changed)
+real      epsP   = 0.10;                 // Scale separation parameter, domain y in (-8,1/epsP); x in (-0.5/epsP,0.5/epsP)
+real      theta  = 0.86;                 // Fluid volume fraction in PE medium
+real      Udrv   = 100.0;                // Top wall u velocity
+real      Kexp   =-5.0;                  // Exponent for time-dependent top wall u velocity
+real      Rem    = 0.0;                  // Constant 1.0 micro-scale Reynolds number (actual Re number set from u field)
+                                         // For Stokes flow use Re = 0.0
+real      dt     = 0.10;                 // Time step parameter
+real      curt   = 0.0;
+real      endt   = 7;                    // End of the time loop
+real      xsliceF=  1.0;                 // Sampling coordinates
+real      zsliceF=  0.1;
+real      xsliceS= -1.5;
+real      zsliceS= -0.5;
+int       NsampU = 60;                   // Sampling rate of unit length
+// Fluid properties
+real[int,int] intrK = [ [ 2.51e-2, 0,      -0.10e-2],
+                        [ 0,       2.25e-2, 0      ],
+                        [-0.10e-2, 0,       2.22e-2] ];   // Interior permeability matrix
+
+real[int,int] alpha    = [ [ 9.793e-1, 0,       -0.009e-1],
+                           [ 0,        9.795e-1, 0       ],
+                           [-0.009e-1, 0,        9.821e-1] ]; // Alpha matrix in front of the pressure
+// Solid properties
+real barR = 1.0;        // Solid inertia
+real barE = 1.0e2;      // Solid elasticity scale
+// (smallest tested stable value 1e2, 1.0 -- stable only for steady solver with moderate Re numbers)
+
+real[int,int] elastMat = [ [4.668e-2, 2.83e-3, 2.33e-3, 0,       1.39e-3, 0       ],
+                           [2.83e-3, 4.638e-2, 2.09e-3, 0,      -2.00e-5, 0       ],
+                           [2.33e-3, 2.09e-3, 4.031e-2, 0,       8.40e-4, 0       ],
+                           [0,       0,       0,        1.68e-3, 0,      -1.00e-4 ],
+                           [1.39e-3,-2.00e-5, 8.40e-4,  0,       2.05e-3, 0       ],
+                           [0,       0,       0,       -1.00e-4, 0,       2.58e-3 ] ]; // Elasticity tensor in Voigt notation
+
+real divEta            = 1.465e-1;         // Divergence coefficients in front of pressure time derivative
+// Interface properties
+real yif = 0.0;
+
+// Check horizontal solid probe
+assert(zsliceS <= yif);
+
+real[int,int] intfK  = [ [ 3.42e-2, 0,      -1.00e-3],      
+                         [ 0,       3.21e-2, 0      ],
+                         [ 0,       0,       2.23e-2] ];   // Interface permeability matrix
+real[int,int] intfL1 = [ [0, 0, 1.91e-1],      
+                         [0, 0, 0      ],
+                         [0, 0, 0      ] ];   // Interface slip length matrix L1kl
+real[int,int] intfL2 = [ [0, 0, 0      ],      
+                         [0, 0, 1.86e-1],
+                         [0, 0, 0      ] ];   // Interface slip length matrix L2kl
+real[int,int] intfL3 = [ [0, 0, 0      ],      
+                         [0, 0, 0      ],
+                         [0, 0, 0      ] ];   // Interface slip length matrix L3kl
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+// Create a pre-factor for time derivative
+real invDt;
+real invDt2;
+if(solver=="Timedep")
+{
+    invDt  = 1.0/dt;
+    invDt2 = 1.0/(dt^2);
+}
+else if(solver=="Steady")
+{
+    invDt  = 0.0;
+    invDt2 = 0.0;
+}
+else
+{
+    assert(1<0);
+}
+
+// Function for amplitude of the boundary condition
+func real Amp(real t) { return 1.0 - exp(Kexp*t); }
+
+// Below here, we consider a 2D problem in (x,z) plane (from FreeFEM++ view, (x,y) plane)
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Macros for convenient equation definition
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Macro for epsilon and divergence operations
+macro epsilon(v1,v2) [dx(v1),dy(v2),(dy(v1)+dx(v2))/sqrt(2)]  //
+macro div    (v1,v2) ( dx(v1)+dy(v2) )                        //
+
+// Free fluid stresses
+macro fx (u,v,p)    (  (-p+2*dx(u)       *epsP)*N.x + (     dy(u)+dx(v))*epsP *N.y                                ) //
+macro fy (u,v,p)    (  (     dy(u)+dx(v))*epsP *N.x + (-p+2*dy(v)       *epsP)*N.y                                ) //
+// Macros for free fluid weak equation
+macro weakFlVol (u,v,p,uu,vv,pp) ( epsP^2*Rem* invDt*(u *uu+v *vv) + ( - p *div(uu,vv)
+                                                                       + 2*epsP*epsilon(u ,v )'*    
+                                                                                epsilon(uu,vv)
+                                                                       - pp*div(u ,v )            ) - 1e-10*p*pp ) // (( Dummy's ))
+macro weakFlSur (u,v,p,uu,vv,pp) (                                 - ( fx(u,v,p)*uu + fy(u,v,p)*vv )          ) //
+macro weakFlRHS (      uu,vv   ) ( epsP^2*Rem*(invDt*(uo*uu+vo*vv)
+                                               - 3.0/2.0*( (uo *dx(uo )+vo *dy(uo ))*uu+(uo *dx(vo )+vo *dy(vo ))*vv )
+                                               + 1.0/2.0*( (uo1*dx(uo1)+vo1*dy(uo1))*uu+(uo1*dx(vo1)+vo1*dy(vo1))*vv ) ) ) //
+
+// Macros for pore-pressure weak equation
+macro weakPel (ud,vd,pp)( invDt*(       alpha(0,0)            * dx(ud )
+                                 + 0.5*(alpha(0,2)+alpha(2,0))*(dx(vd )+dy(ud ))
+                                 +      alpha(2,2)            * dy(vd )          )*pp  ) //
+macro weakPrhs(      pp)( invDt*(       alpha(0,0)            * dx(udo)
+                                 + 0.5*(alpha(0,2)+alpha(2,0))*(dx(vdo)+dy(udo))
+                                 +      alpha(2,2)            * dy(vdo)
+                              + epsP*divEta*pbo )*pp  ) //
+macro weakPvol(   pb,pp)( invDt*epsP*divEta*pb*pp + 1.0/epsP*( (intrK(0,0)*dx(pb)+intrK(0,2)*dy(pb))*dx(pp)
+                                                              +(intrK(2,0)*dx(pb)+intrK(2,2)*dy(pb))*dy(pp) ) ) //
+macro weakPsur(   pb,pp)(                         - 1.0/epsP*( (intrK(0,0)*dx(pb)+intrK(0,2)*dy(pb))*N.x*pp
+                                                              +(intrK(2,0)*dx(pb)+intrK(2,2)*dy(pb))*N.y*pp ) ) //
+
+macro Sxx (u,v) ( barE/epsP*( elastMat(0,0)* dx(u)       +elastMat(0,2)* dy(v) +elastMat(0,4)*(dx(v)+dy(u)) )  ) //
+macro Syy (u,v) ( barE/epsP*( elastMat(2,0)* dx(u)       +elastMat(2,2)* dy(v) +elastMat(2,4)*(dx(v)+dy(u)) )  ) //
+macro Sxy (u,v) ( barE/epsP*( elastMat(4,0)* dx(u)       +elastMat(4,2)* dy(v) +elastMat(4,4)*(dx(v)+dy(u)) )  ) //
+// Macros for pore-displacement weak equation
+macro weakElVol(ud,vd,uu,vv) ( (invDt2*epsP*(1.0-theta)*barR*(ud*uu+vd*vv)) + (  Sxx(ud,vd)* dx(uu)
+                                                                               + Sxy(ud,vd)*(dx(vv)+dy(uu))
+                                                                               + Syy(ud,vd)* dy(vv)) ) //
+macro weakElSur(ud,vd,uu,vv) (                                              -(  (Sxx(ud,vd)*N.x + Sxy(ud,vd)*N.y)*uu
+                                                                              + (Sxy(ud,vd)*N.x + Syy(ud,vd)*N.y)*vv) ) //
+macro weakElpvl(   pb,uu,vv) ( ((alpha(0,0)*dx(pb)+alpha(0,2)*dy(pb))*uu + (alpha(2,0)*dx(pb)+alpha(2,2)*dy(pb))*vv) ) //
+macro weakElRHS(      uu,vv) ( (invDt2*epsP*(1.0-theta)*barR*(2.0*(udo*uu+vdo*vv)-(udo1*uu+vdo1*vv)) ) ) //
+
+// Macros for boundary conditions, *bcF -- evaluated at free fluid side, *bcP - evaluated at pore-pressure, *bcE - evaluated at elasticity
+// Velocity boundary condition, both components
+macro ubcF(u,v,bb)  ( (u - intfL1(0,0)*2.0*dx(u) - intfL1(2,2)*2.0*dy(v) - (intfL1(0,2)+intfL1(2,0))*(dx(v)+dy(u)))*bb ) //
+macro vbcF(u,v,bb)  ( (v - intfL3(0,0)*2.0*dx(u) - intfL3(2,2)*2.0*dy(v) - (intfL3(0,2)+intfL3(2,0))*(dx(v)+dy(u)))*bb ) //
+macro ubcP(pb,bb)   ( (intfK(0,0)*dx(pb)+intfK(0,2)*dy(pb))/epsP*bb ) //
+macro vbcP(pb,bb)   ( (intfK(2,0)*dx(pb)+intfK(2,2)*dy(pb))/epsP*bb ) //
+macro ubcE(ud,vd,bb)( - invDt*ud*bb ) //
+macro vbcE(ud,vd,bb)( - invDt*vd*bb ) //
+macro ubcR(bb)      ( - invDt*udo*bb )  //
+macro vbcR(bb)      ( - invDt*vdo*bb )  //
+// Pressure boundary condition - continuity
+macro pbcF(p,u,v,bb) ( ( p  )*bb ) //
+macro pbcP(pb,bb)    ( (-pb )*bb ) //
+// Stress boundary condition
+macro subcF(u,v,p,bb) ( fx(u,v,p)*bb ) //
+macro svbcF(u,v,p,bb) ( fy(u,v,p)*bb ) //
+macro subcP(pb   ,bb) ( (alpha(0,0)*pb*N.x+alpha(0,2)*pb*N.y)*bb ) //
+macro svbcP(pb   ,bb) ( (alpha(2,0)*pb*N.x+alpha(2,2)*pb*N.y)*bb ) //
+macro subcE(ud,vd,bb) (-(Sxx(ud,vd)*N.x + Sxy(ud,vd)*N.y)   *bb ) //
+macro svbcE(ud,vd,bb) (-(Sxy(ud,vd)*N.x + Syy(ud,vd)*N.y)   *bb ) //
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Definition of geometry
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Set domain extent
+real ymax =  1.0/epsP;
+real ymin = -8.0;
+real xmin = -0.5/epsP;
+real xmax =  0.5/epsP;
+
+// Define geometry, channel borders, free fluid
+border sqr1(t=yif, ymax) {x=xmax; y=t;    label=1; }
+border sqr2(t=xmax,xmin) {x=t;    y=ymax; label=2; }
+border sqr3(t=ymax,yif ) {x=xmin; y=t;    label=3; }
+border sqr4(t=xmin,xmax) {x=t;    y=yif;  label=4; }
+// Channel borders, porous medium
+border sqr1p(t=ymin, yif) {x=xmax; y=t;    label=1; }
+border sqr2p(t=xmax,xmin) {x=t;    y=yif;  label=2; }
+border sqr3p(t=yif, ymin) {x=xmin; y=t;    label=3; }
+border sqr4p(t=xmin,xmax) {x=t;    y=ymin; label=4; }
+               
+// Generate meshes
+mesh ThT=buildmesh( sqr1 (   n*(ymax-yif))+sqr2 (   n*(xmax-xmin))
+                   +sqr3 (   n*(ymax-yif))+sqr4 (   n*(xmax-xmin)) );
+mesh ThL=buildmesh( sqr1 (nL*n*(ymax-yif))+sqr2 (nL*n*(xmax-xmin))
+                   +sqr3 (nL*n*(ymax-yif))+sqr4 (nL*n*(xmax-xmin)) );
+ThL =emptymesh(ThL);
+mesh ThB=buildmesh( sqr1p(   n*(yif-ymin))+sqr2p(   n*(xmax-xmin))
+                   +sqr3p(   n*(yif-ymin))+sqr4p(   n*(xmax-xmin))  );
+
+plot(ThT,ThB);
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Define FE spaces, variational formulation
+// ------------------------------------------------------------------------------------------------------------------------------------
+fespace UUPhT(ThT,[P2,P2,P1]);
+fespace UUPhL(ThL,[P1]);
+fespace   PhB(ThB,[P2]);
+fespace  VVhB(ThB,[P2,P2]);
+
+
+// Define the variables and old values
+UUPhT [u,v,p], [uo,vo,po]=[0,0,0], [uo1,vo1,po1]=[0,0,0];
+  PhB [pb],    [pbo] = [0];
+ VVhB [ud,vd], [udo,vdo]=[0,0], [udo1,vdo1]=[0,0];
+
+// Define the variational formulation of fluid part
+varf eqFFvol ([u,v,p],[uu,vv,pp]) = int2d(ThT)  ( weakFlVol(u,v,p,uu,vv,pp) ) + on(1,3,u=0,v=0) + on(2,u=Amp(curt)*Udrv,v=0);
+// Stresses at the interface are unknown, because b.c. enforced using Lagrange multipliers
+varf eqFFsrf ([u,v,p],[uu,vv,pp]) = int1d(ThT,4)( weakFlSur(u,v,p,uu,vv,pp) );
+// Right hand side for time derivative and non-linear terms
+varf eqFFrhs ([empty],[uu,vv,pp]) = int2d(ThT)  ( weakFlRHS(uu,vv) );
+
+// Define the variational formulation, pressure Poisson
+varf eqPPvol([p],[pp])     = int2d(ThB)  ( weakPvol(p,pp) );
+varf eqPPsrf([p],[pp])     = int1d(ThB,2)( weakPsur(p,pp) );
+varf eqPPrhs([empty],[pp]) = int2d(ThB)  ( weakPrhs(  pp) );
+// Interaction with time derivative of solid, implicit part
+varf eqPEvol([u,v],[pp]) = int2d(ThB)  ( weakPel(u,v,pp) );
+
+// Define the variational formulation, elasticity equation
+varf eqEEvol([u,v],[uu,vv])   = int2d(ThB)  ( weakElVol(u,v,uu,vv) ) + on(1,3,4,u=0,v=0);
+varf eqEEsrf([u,v],[uu,vv])   = int1d(ThB,2)( weakElSur(u,v,uu,vv) );
+varf eqEErhs([empty],[uu,vv]) = int2d(ThB)  ( weakElRHS(    uu,vv) );
+varf eqEPvol([p],[uu,vv])     = int2d(ThB)  ( weakElpvl(  p,uu,vv) );
+
+// Define the variational formulation, boundary conditions
+// Velocity boundary condition
+varf intpIntfUf ([u,v,p],[bb]) = int1d(ThL,4)(  ubcF(u,v,bb) );
+varf intpIntfUp ([p],    [bb]) = int1d(ThL,4)(  ubcP(p  ,bb) );
+varf intpIntfUe ([u,v],  [bb]) = int1d(ThL,4)(  ubcE(u,v,bb) );
+varf intpIntfUr ([empty],[bb]) = int1d(ThL,4)(  ubcR(    bb) );
+varf intpIntfVf ([u,v,p],[bb]) = int1d(ThL,4)(  vbcF(u,v,bb) );
+varf intpIntfVp ([p],    [bb]) = int1d(ThL,4)(  vbcP(p  ,bb) );
+varf intpIntfVe ([u,v],  [bb]) = int1d(ThL,4)(  vbcE(u,v,bb) );
+varf intpIntfVr ([empty],[bb]) = int1d(ThL,4)(  vbcR(    bb) );
+varf intpIntfUft([b],[uu,vv,pp]) = int1d(ThT,4)( b*uu );
+varf intpIntfVft([b],[uu,vv,pp]) = int1d(ThT,4)( b*vv );
+// Pressure boundary condition
+varf intpIntfPf ([u,v,p],[bb])   = int1d(ThL,4)( pbcF(p,u,v,bb) );
+varf intpIntfPp ([p],    [bb])   = int1d(ThL,4)( pbcP(p    ,bb) );
+varf intpIntfPt ([b],    [pp])   = int1d(ThL,4)( b*pp );
+// Stress boundary condition
+varf intpIntfSUf([u,v,p],[bb]) = int1d(ThL,4)( subcF(u,v,p,bb) );
+varf intpIntfSUe([u,v],  [bb]) = int1d(ThL,4)( subcE(u,v  ,bb) );
+varf intpIntfSUp([p],    [bb]) = int1d(ThL,4)( subcP(p    ,bb) );
+varf intpIntfSVf([u,v,p],[bb]) = int1d(ThL,4)( svbcF(u,v,p,bb) );
+varf intpIntfSVe([u,v],  [bb]) = int1d(ThL,4)( svbcE(u,v  ,bb) );
+varf intpIntfSVp([p],    [bb]) = int1d(ThL,4)( svbcP(p    ,bb) );
+// Penalty for unused terms
+varf intppenS4  ([b],[bb])     = int1d(ThL,1,2,3)( -1e-10*b*bb );
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Construct the linear system, re-used in each time step
+// ------------------------------------------------------------------------------------------------------------------------------------
+matrix CoupSYSmat;
+{
+    // Fluid part
+    matrix FF = eqFFvol(UUPhT,UUPhT);     matrix FFs = eqFFsrf(UUPhT,UUPhT);
+    matrix B1 = intpIntfUf (UUPhT,UUPhL); matrix B2  = intpIntfVf (UUPhT,UUPhL);   // Velocity boundary condition
+    matrix B1t= intpIntfUft(UUPhL,UUPhT); matrix B2t = intpIntfVft(UUPhL,UUPhT);   // Feedback to free fluid
+    matrix B3 = intpIntfPf (UUPhT,UUPhL);                                          // Pressure condition
+    matrix B4 = intpIntfSUf(UUPhT,UUPhL); matrix B5  = intpIntfSVf(UUPhT,UUPhL);   // Stress condition
+    FF=FF+FFs;
+   
+    // Pressure Poisson part
+    matrix PP = eqPPvol(PhB ,PhB);        matrix PPs = eqPPsrf(PhB,PhB);
+    matrix PE = eqPEvol(VVhB,PhB);                                                 // Implicit time derivative part from elasticity         
+    matrix B1p= intpIntfUp (PhB,UUPhL);   matrix B2p = intpIntfVp (PhB,UUPhL);     // Velocity boundary condition
+    matrix B3p= intpIntfPp (PhB,UUPhL);   matrix B3t = intpIntfPt (UUPhL,PhB);     // Pressure boundary condition
+    matrix B4p= intpIntfSUp(PhB,UUPhL);   matrix B5p = intpIntfSVp(PhB,UUPhL);     // Stress boundary condition
+    PP=PP+PPs;
+
+    // Elasticity part
+    matrix EE = eqEEvol(VVhB,VVhB);       matrix EEs = eqEEsrf(VVhB,VVhB);
+    matrix EP = eqEPvol(PhB ,VVhB);                                                // Driving pore-pressure gradient
+    EE=EE+EEs;
+    matrix B1e= intpIntfUe (VVhB,UUPhL);  matrix B2e= intpIntfVe (VVhB,UUPhL);     // Velocity boundary condition
+    matrix B4e= intpIntfSUe(VVhB,UUPhL);  matrix B5e= intpIntfSVe(VVhB,UUPhL);     // Stress boundary condition
+    matrix B4t=B4e'; matrix B5t=B5e';
+
+    // Lagrange multipliers, penalty
+    matrix BP4  = intppenS4(UUPhL,UUPhL);
+
+    // Assemble the main matrix
+    CoupSYSmat = [ [ FF, 0,    0,    B1t,  B2t, 0,   0,    0    ], // [ Dummy's ]
+                   [ 0,  PP,   PE,   0,    0,   B3t, 0,    0    ], // [ Dummy's ]
+                   [ 0,  EP,   EE,   0,    0,   0,   B4t,  B5t  ], // [ Dummy's ]
+                   [ B1, B1p,  B1e,  BP4,  0,   0,   0,    0    ],
+                   [ B2, B2p,  B2e,  0,    BP4, 0,   0,    0    ],
+                   [ B3, B3p,  0,    0,    0,   BP4, 0,    0    ],
+                   [ B4, B4p,  B4e,  0,    0,   0,   BP4,  0    ],
+                   [ B5, B5p,  B5e,  0,    0,   0,   0,    BP4  ] ];
+}
+// Choose the direct solver
+set(CoupSYSmat, solver=sparsesolver);
+
+// Construct the right hand side vector, must redo every time step, here carry out first time step and define 
+real[int] RHS(UUPhT.ndof+PhB.ndof+VVhB.ndof+5*UUPhL.ndof);
+{
+    RHS(0:UUPhT.ndof+PhB.ndof+VVhB.ndof+5*UUPhL.ndof-1) = 0;
+    // Right hand side of the free fluid
+    real[int] tmparr1                                            = eqFFvol (0,UUPhT);
+    RHS(0:UUPhT.ndof-1)                                          = eqFFrhs (0,UUPhT);
+    RHS(0:UUPhT.ndof-1)                                          = RHS(0:UUPhT.ndof-1) + tmparr1;
+    // Right hand side of the pressure Poisson
+    RHS(UUPhT.ndof:UUPhT.ndof+PhB.ndof-1)                        = eqPPrhs (0,PhB);
+    // Right hand side of the elasticity equation
+    real[int] tmparr2                                            = eqEErhs (0,VVhB);
+    RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1)     = eqEEvol (0,VVhB);
+    RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1)     = RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1) + tmparr2;
+    // Right hand side of the velocity boundary conditions
+    RHS(UUPhT.ndof+PhB.ndof+VVhB.ndof+0*UUPhL.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof+1*UUPhL.ndof-1) = intpIntfUr(0,UUPhL);
+    RHS(UUPhT.ndof+PhB.ndof+VVhB.ndof+1*UUPhL.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof+2*UUPhL.ndof-1) = intpIntfVr(0,UUPhL);
+}
+// Solve the system
+real[int] SOL = CoupSYSmat^-1*RHS;
+// Probe results
+u[] = SOL(0:UUPhT.ndof-1); v[] = SOL(0:UUPhT.ndof-1); p[] = SOL(0:UUPhT.ndof-1);
+pb[]= SOL(UUPhT.ndof:UUPhT.ndof+PhB.ndof-1);
+ud[]= SOL(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1); vd[]= SOL(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1);
+real ffAvgP = int2d(ThT)( p );
+real pmAvgP = int2d(ThT)( pb);
+cout << "Time: " << curt << ", boundary Uwall = " << Amp(curt)*Udrv << ", ffAvgP = " << ffAvgP << ", pmAvgP = " << pmAvgP
+     << ", probe u(0.0,1.0) = " << u(0.0,1.0)  << ", probe ud(0.0,-1.0) = " << ud(0.0,-1.0) << endl;
+// Prepare the next time step
+curt = curt + dt;
+[uo1,vo1,po1] = [uo,vo,po]; [uo,vo,po] = [u,v,p];
+[pbo]         = [pb];
+[udo1,vdo1]   = [udo,vdo];  [udo,vdo]  = [ud,vd];
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Main time loop
+// ------------------------------------------------------------------------------------------------------------------------------------
+int nSteps = (endt-curt)/dt;
+for(int i=0; i<nSteps; i++)
+{
+    // Re-evaluate the right hand side
+    {
+    RHS(0:UUPhT.ndof+PhB.ndof+VVhB.ndof+5*UUPhL.ndof-1) = 0;
+    // Right hand side of the free fluid
+    real[int] tmparr1                                            = eqFFvol (0,UUPhT);
+    RHS(0:UUPhT.ndof-1)                                          = eqFFrhs (0,UUPhT);
+    RHS(0:UUPhT.ndof-1)                                          = RHS(0:UUPhT.ndof-1) + tmparr1;
+    // Right hand side of the pressure Poisson
+    RHS(UUPhT.ndof:UUPhT.ndof+PhB.ndof-1)                        = eqPPrhs (0,PhB);
+    // Right hand side of the elasticity equation
+    real[int] tmparr2                                            = eqEErhs (0,VVhB);
+    RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1)     = eqEEvol (0,VVhB);
+    RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1)     = RHS(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1) + tmparr2;
+    // Right hand side of the velocity boundary conditions
+    RHS(UUPhT.ndof+PhB.ndof+VVhB.ndof+0*UUPhL.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof+1*UUPhL.ndof-1) = intpIntfUr(0,UUPhL);
+    RHS(UUPhT.ndof+PhB.ndof+VVhB.ndof+1*UUPhL.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof+2*UUPhL.ndof-1) = intpIntfVr(0,UUPhL);
+    }
+    // Solve the system
+    SOL = CoupSYSmat^-1*RHS;
+    // Probe results
+    u[] = SOL(0:UUPhT.ndof-1);
+    pb[]= SOL(UUPhT.ndof:UUPhT.ndof+PhB.ndof-1);
+    ud[]= SOL(UUPhT.ndof+PhB.ndof:UUPhT.ndof+PhB.ndof+VVhB.ndof-1);
+    ffAvgP = int2d(ThT)( p );
+    pmAvgP = int2d(ThT)( pb);
+    cout << "Time: " << curt << ", boundary Uwall = " << Amp(curt)*Udrv << ", ffAvgP = " << ffAvgP << ", pmAvgP = " << pmAvgP
+         << ", probe u(0.0,1.0) = " << u(0.0,1.0)  << ", probe ud(0.0,-1.0) = " << ud(0.0,-1.0) << endl;
+    // Prepare the next time step
+    curt = curt + dt;
+    [uo1,vo1,po1] = [uo,vo,po]; [uo,vo,po] = [u,v,p];
+    [pbo]         = [pb];
+    [udo1,vdo1]   = [udo,vdo];  [udo,vdo]  = [ud,vd];    
+}
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Post-processing of results
+// ------------------------------------------------------------------------------------------------------------------------------------
+PhB ub, vb;
+ub = -(intrK(0,0)*dx(pb)+intrK(0,2)*dy(pb))/epsP;
+vb = -(intrK(2,0)*dx(pb)+intrK(2,2)*dy(pb))/epsP;
+
+// Shift the pressure to report meaningful results
+real pavgif = int1d(ThT,levelset=(y-yif-1e-6))( p )/(xmax-xmin);
+cout << "Obtained average pressure at interface = " << pavgif << endl;
+fespace PhT(ThT,[P1]);
+PhT psh;
+PhB pbsh;
+psh  = p  - pavgif;
+pbsh = pb - pavgif;
+// Sample given slices, output results to text file
+int Nsamp = NsampU*(ymax-ymin);
+{
+    real ysmp;
+    ofstream resfileX("2DfluidPEmedium_cavity_UnsteadyNStokes_"+caseFix+"_fluidZslice.txt");
+    resfileX << "# y, u, v, p, sampled at x = " << xsliceF << endl;
+    for(int i=0; i<Nsamp; i++)
+    {
+        ysmp = ymin+1e-6 + i*(ymax-ymin-2e-6)/(Nsamp-1.0);
+        if(ysmp > yif) resfileX << ysmp << " " << u (xsliceF,ysmp) << " " << v (xsliceF,ysmp) << " " << psh (xsliceF,ysmp) << endl;
+        else           resfileX << ysmp << " " << ub(xsliceF,ysmp) << " " << vb(xsliceF,ysmp) << " " << pbsh(xsliceF,ysmp) << endl;
+    }
+}
+
+Nsamp = NsampU*(yif-ymin);
+{
+    real ysmp;
+    ofstream resfileX("2DfluidPEmedium_cavity_UnsteadyNStokes_"+caseFix+"_solidZslice.txt");
+    resfileX << "# y, u, v, sampled at x = " << xsliceS << endl;
+    for(int i=0; i<Nsamp; i++)
+    {
+        ysmp = ymin+1e-6 + i*(yif-ymin-2e-6)/(Nsamp-1.0);
+        resfileX << ysmp << " " << ud(xsliceS,ysmp) << " " << vd(xsliceS,ysmp) << endl;
+    }
+}
+
+Nsamp = NsampU*(xmax-xmin);
+{
+    real xsmp;
+    ofstream resfileZ("2DfluidPEmedium_cavity_UnsteadyNStokes_"+caseFix+"_fluidXslice.txt");
+    resfileZ << "# x, u, v, p, sampled at y = " << zsliceF << endl;
+    ofstream resfileZs("2DfluidPEmedium_cavity_UnsteadyNStokes_"+caseFix+"_solidXslice.txt");
+    resfileZs << "# x, u, v, sampled at y = " << zsliceS << endl;
+    for(int i=0; i<Nsamp; i++)
+    {
+        xsmp = xmin+1e-6 + i*(xmax-xmin-2e-6)/(Nsamp-1.0);
+        if(zsliceF > yif) resfileZ << xsmp << " " << u (xsmp,zsliceF) << " " << v (xsmp,zsliceF) << " " << psh (xsmp,zsliceF) << endl;
+        else              resfileZ << xsmp << " " << ub(xsmp,zsliceF) << " " << vb(xsmp,zsliceF) << " " << pbsh(xsmp,zsliceF) << endl;    
+        resfileZs << xsmp << " " << ud(xsmp,zsliceS) << " " << vd(xsmp,zsliceS) << endl;
+    }
+}
+
+
+// Define the "jet" colorscheme, BUT - it is intensity incorrect (black & white prints look weird)
+real[int] colorsJET = [
+    6.666666666666666297e-01, 1.000000000000000000e+00, 8.333000000000000407e-01,
+    6.666666666666666297e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.388833333333332476e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    6.111166666666666414e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.833333333333332593e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.555499999999999883e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.277833333333332710e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.000000000000000000e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    4.666586663466538720e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    4.166791660416978571e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    3.333333333333333148e-01, 5.000000000000000000e-01, 1.000000000000000000e+00,
+    2.499875006249687726e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+    2.000080003200127854e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+    1.666666666666666574e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.388833333333333309e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    1.111166666666666553e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    8.333333333333332871e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    5.554999999999999521e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    2.778333333333333002e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 1.000000000000000000e+00,
+    0.000000000000000000e+00, 1.000000000000000000e+00, 8.333000000000000407e-01
+    ];
+
+// Plot the obtained fields
+plot(u  ,ub  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(v  ,vb  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(psh,pbsh,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(    ub  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(    vb  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(    ud  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+plot(    vd  ,nbiso=40,hsv=colorsJET,value=true,fill=true);
+// ------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------
+

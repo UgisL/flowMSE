@@ -1,0 +1,122 @@
+verbosity=5;
+
+load "UMFPACK64"
+load "iovtk"
+
+load "msh3"
+load "gmsh"
+
+// Reading the parameters from file
+real zmax, zmin, xmax, xmin, tolSOL, barE, theta, epsP, tmp;
+{
+    ifstream param("3D_DNS_parameters.txt");
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tmp;  param >> tmp;  param >> tmp;
+    param >> tolSOL;
+    // Here one can compute just the result with barE = 1.0 and get other fields using
+    // linear multiplication, since the solid equations are linear
+    param >> barE;
+    param >> zmin; param >> zmax;
+    param >> xmin; param >> xmax;
+    param >> epsP;
+}
+
+// Top wall driving velocity, constant fluid parameter
+real Uvel = 100.0;
+
+// Solid structure Poisson ratio, constant solid parameter
+// (stainless steel, from wikipedia and engineeringtoolbox)
+real poisR = 0.3;
+
+// Number of samples per unit of length 
+int Nsamp = 60; 
+
+// Rescale the number of samples 
+Nsamp = Nsamp*(zmax-zmin); 
+
+// Probe array 
+real[int,int] Probe(6,Nsamp); 
+
+macro epsilon(v1,v2,v3) [dx(v1),dy(v2),dz(v3),(dy(v1)+dx(v2))/sqrt(2),(dz(v1)+dx(v3))/sqrt(2),(dz(v2)+dy(v3))/sqrt(2)] // 
+macro div(v1,v2,v3) ( dx(v1)+dy(v2)+dz(v3) ) //
+
+// Macros for boundary stress components
+macro fx(n1,n2,n3) (  (-pf+2*dx(uf)        *epsP)*n1 + (      dy(uf)+dx(vf))*epsP *n2 + (      dz(uf)+dx(wf))*epsP *n3  ) //
+macro fy(n1,n2,n3) (  (      dy(uf)+dx(vf))*epsP *n1 + (-pf+2*dy(vf)        *epsP)*n2 + (      dz(vf)+dy(wf))*epsP *n3  ) //
+macro fz(n1,n2,n3) (  (      dz(uf)+dx(wf))*epsP *n1 + (      dy(wf)+dz(vf))*epsP *n2 + (-pf+2*dz(wf)        *epsP)*n3  ) //
+    
+// Read the current meshes, fluid and solid
+mesh3 ThCAVf=gmshload3("3D_DNS_gen_geomF.msh");
+mesh3 ThCAVs=gmshload3("3D_DNS_gen_geomS.msh");
+
+// Create the needed FE space and variables
+fespace UUUPhCAV(ThCAVf,[P2,P2,P2,P1],periodic=[[3003,x,z],[3004,x,z]]);
+UUUPhCAV [uf,vf,wf,pf], [uuf,vvf,wwf,ppf];
+fespace VVVhCAV (ThCAVs,[P2,P2,P2   ],periodic=[[3003,x,z],[3004,x,z]]);
+VVVhCAV  [u ,v ,w ],    [uu ,vv ,ww ];
+
+// // Read some initial conditions for the GMRES solver and interpolate
+// // -----------------------------------------------------------------------------
+// // Read the coarser fluid solution
+// mesh3 ThCoarseF=gmshload3("3D_DNS_solution_initCoarse_fluid.msh");
+// fespace UUUPhCoarse(ThCoarseF,[P2,P2,P2,P1],periodic=[[3003,x,z],[3004,x,z]]);
+// UUUPhCoarse [uc,vc,wc,pc];
+// {
+//     ifstream rf("3D_DNS_solution_initCoarse_fluid.dat",binary); 
+//     rf >> uc[]; 
+// }
+// // Read the coarser solid solution
+// mesh3 ThCoarseS=gmshload3("3D_DNS_solution_initCoarse_solid.msh");
+// fespace VVVhCoarse(ThCoarseS,[P2,P2,P2],periodic=[[3003,x,z],[3004,x,z]]);
+// VVVhCoarse [usc,vsc,wsc];
+// {
+//     ifstream rf("3D_DNS_solution_initCoarse_solid.dat",binary); 
+//     rf >> usc[]; 
+// }
+// // Initiate fluid and solid solution with coarser solution
+// [uf,vf,wf,pf] = [uc,vc,wc,pc];
+// [u ,v ,w ]    = [usc,vsc,wsc];
+// // -----------------------------------------------------------------------------
+
+// Initiate fluid and solid solution using trivial solution
+[uf,vf,wf,pf] = [0,0,0,0];
+[u ,v ,w ]    = [0,0,0];
+
+
+// Define the problem to solve, fluid
+problem stokesCavity([uf,vf,wf,pf],[uuf,vvf,wwf,ppf],solver=GMRES,eps=tolSOL) = 
+    int3d(ThCAVf)( 2*epsP*epsilon(uf,vf,wf)'*epsilon(uuf,vvf,wwf)          // Dummy Emac's comment 
+                      -pf*div(uuf,vvf,wwf) + ppf*div(uf,vf,wf) -1.0e-10*pf*ppf ) 
+    + on(3001,3002,3005,3007,uf=0,vf=0,wf=0) 
+    + on(3006,uf=Uvel,vf=0,wf=0);
+
+// Define the problem to solve, solid
+problem elastCavity([u,v,w],[uu,vv,ww],solver=GMRES,eps=tolSOL) =
+    int3d(ThCAVs)( (poisR/((1.0+poisR)*(1.0-2.0*poisR)))*div(u,v,w)*div(uu,vv,ww)
+                   +1.0/(1.0+poisR)*( epsilon(u,v,w)'*epsilon(uu,vv,ww) ) )  // (( Explicit stress' divergence of isotropic material ))
+  - int2d(ThCAVs,3007)( epsP/barE*fx(N.x,N.y,N.z)*uu+epsP/barE*fy(N.x,N.y,N.z)*vv+epsP/barE*fz(N.x,N.y,N.z)*ww ) // Natural b.c. at contact with fluid
+  + on(3001,3002,3005,u=0,v=0,w=0);
+
+// Solve the fluid problem
+stokesCavity;
+// Save the fluid solution
+{
+    ofstream rf("3D_DNS_solution_fluid.dat",binary); 
+    rf << uf[]; 
+}
+// savevtk("3D_DNS_solution_fluid.vtk", ThCAVf, [uf,vf,wf],pf);
+
+// Shift the fluid solution to zero mean-pressure over the whole domain
+real pfavg = int3d(ThCAVf)( pf ) / int3d(ThCAVf)( 1.0 );
+cout << "Integrated average pressure value, for shifting = " << pfavg << endl;
+[uf,vf,wf,pf] = [uf,vf,wf,pf - pfavg];
+
+// Solve the solid problem
+elastCavity;
+// Save the solid solution
+{
+    ofstream rf("3D_DNS_solution_solid.dat",binary); 
+    rf << u[]; 
+}
+//savevtk("3D_DNS_solution_init_solid.vtk", ThCAVs, [u,v,w]);

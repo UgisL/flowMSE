@@ -1,0 +1,289 @@
+\NeedsTeXFormat{LaTeX2e}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0},
+}
+
+%\usepackage[lite,subscriptcorrection,slantedGreek,nofontinfo]{mtpro2}
+%\usepackage{microtype}
+
+\usepackage{parskip}
+%\usepackage{units}
+\usepackage{xspace}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+%\usepackage{amssymb}
+\usepackage{graphicx}
+%\usepackage{units}
+%\usepackage[section]{placeins}
+\usepackage{cite}
+\usepackage{subfigure}
+
+% Reduce margins
+\usepackage{a4wide}
+% Header style
+\pagestyle{fancy}
+\fancyfoot[L]{\today}
+\fancyfoot[C]{}
+\fancyfoot[R]{Ugis Lacis}
+\fancyhead[L]{Documentation}
+\fancyhead[C]{Poroelastic\_full\_strCont}
+\fancyhead[R]{Page \thepage}
+
+\usepackage{times}
+%\usepackage{mathptm}
+\usepackage{longtable}
+\usepackage{multirow}
+
+\usepackage{float}  %My added packages [UgisL]
+\usepackage{verbatim}
+\usepackage{url}
+
+% Code inclusion
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{language=C++,
+  aboveskip=3mm,
+  belowskip=3mm,
+  xleftmargin=\parindent,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\scriptsize\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+
+\newcommand{\pd}{\partial}
+\newcommand{\pdt}{\partial_t}
+
+% Package for doing IF clauses withing newcommand
+\usepackage{xstring}
+% Commands for strain and ordering parameters
+\newcommand{\str}[3]{\varepsilon^{#1}_{#2} \left( #3 \right)}
+\newcommand{\ord}{\epsilon}
+\newcommand{\vare}[2]{ #2^{(#1)} }
+%\newcommand{\orde}[2]{\epsilon^{#1} #2^{(#1)} }
+\newcommand{\orde}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ \epsilon #2^{(#1)} }%
+    }[ \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordep}[2]{%
+    \IfEqCase{#1}{%
+        {0}{  #2^{(#1)} }%
+        {1}{ + \epsilon #2^{(#1)} }%
+    }[ + \epsilon^{#1} #2^{(#1)} ]%
+}
+\newcommand{\ordest}[1]{\mathcal{O} \left( #1\right)}
+% Package for for loops
+\usepackage{pgffor}
+% Command to print the complete series
+\newcommand{\ordser}[2]{%
+    \foreach \index in {0, ..., #1} {%
+        \ordep{\index}{#2}
+    }
+    + \ldots
+}
+
+
+% Some old commands
+\newcommand{\expp}[1]{\text{e}^{#1}}
+\newcommand{\ms}{\frac{\text{m}}{\text{s}}}
+\newcommand{\mms}{\frac{\text{m}^2}{\text{s}}}
+\newcommand{\muo}{\mu_\circ}
+\newcommand{\re}[1]{#1_{\text{Re}}}
+\newcommand{\im}[1]{#1_{\text{Im}}}
+\providecommand\Div{\mathop{\rm div}\nolimits}                  %%%%%%%%%
+\providecommand\Rot{\mathop{\rm rot}\nolimits}                  %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+\providecommand\Grad{\mathop{\rm grad}\nolimits}                %%%%%%%%%
+
+
+\DeclareMathOperator{\tg}{tg}
+\DeclareMathOperator{\arctg}{arctg}
+
+% Tensoren fett
+\DeclareRobustCommand{\tensor}[1]{{\mbox{\mathversion{bold}\ensuremath{#1}}}}
+
+\def\inputGnumericTable{}
+
+\renewcommand{\figurename}{Fig.}
+
+\begin{document}
+
+\sloppy
+
+\section{General information}
+
+This software is a script compilation for FreeFem++ to solve interior and interface cell problems to arrive with coefficients in governing equations of poroelastic material and boundary condition (BC) between poroelastic material medium and free fluid. This software gives the possibility to compute these coefficients in three-dimensions (3D) for fully connected poroelastic skeleton. If you find this software useful, please cite the corresponding publication <> (arXiv preprint).
+
+The contents of this software are listed below.
+%[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
+\begin{lstlisting}[language=tex]
+src/0_setup/*                                 - scripts to set-up microscale geometry
+src/1_Interior/*                              - scripts to solve for interior properties
+src/2_Interface/*                             - scripts to solve for interface coefficients
+src/3_effective_solver/*                      - solver for the averaged fields in the problem
+src/4_DNS_solver/*                            - used DNS solver and obtained fields
+doc/Poroelastic_full_strCont.pdf              - this document
+\end{lstlisting}
+
+In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation. In the following sections, we describe each of the software directory in more details.
+
+\section{Setting up geometry for model parameter computation} \label{sec:presim-start}
+
+The contents in the set-up directory are
+\begin{lstlisting}[language=tex]
+src/0_setup/3D_MSE_parameters.in
+src/0_setup/3D_MSE_gen_geom.py
+\end{lstlisting}
+
+The first file is an example parameter file, containing:
+\begin{enumerate}
+    \item Size of the interface cell ($ztop$ -- $z$ coordinate of upper boundary, $Nbot$ -- number of structures below the interface, resulting in $z = - Nbot$ coordinate of the lower boundary). The interface location is always at $z = 0$;
+	\item Definition of the one solid microstructure with $a_1 = eA$, $a_2 = eB$, $a_3 = eC$, $r = cR$ and $\phi = phi$. See the main paper for explanations of geometrical parameters;
+    \item Mesh spacings $\Delta s_1 = dsMin$ and $\Delta s_2 = dsMax$.
+\end{enumerate}
+
+Given the required parameters (the example input file contains parameters for monoclynic symmetric geometry from the main paper with intermediate resolution), the geometry definition can be generated executing the Phython script
+\begin{lstlisting}[language=tex]
+./3D_MSE_gen_geom.py
+\end{lstlisting}
+which generates $5$ geometry definition files and $1$ $FEM$ space definition file, used later by FreeFem++ solver. Before proceeding, all mesh files must be generated using GMSH software, which in the command line can be done by typing
+\begin{lstlisting}[language=tex]
+gmsh -3 3D_MSE_gen_geomX.geo
+\end{lstlisting}
+where $X$ should be replace by $I$, $Is$, $B$, $L$ and $T$. The generated meshes are later used to obtain needed coefficients for the effective/averaged model equations.
+
+\section{Obtaining interior properties}
+
+The equations, which are solved to obtain the effective interior properties, are described in the main paper. Standard weak forms for Stokes equations and linear elasticity equations are used. The final results for the interior can be obtained by running the FreeFem++ software in folder ``1\_Interior'' in the command line
+\begin{lstlisting}[language=tex]
+FreeFem++ -nw 3D_interiorC_solver.edp
+FreeFem++ -nw 3D_interiorK_solver.edp
+\end{lstlisting}
+which would produce a text file ``3D\_interiorK\_matrix.txt'' containing the permeability tensor, and a text file ``3D\_interiorC\_matrices.txt'' containing the effective elasticity tensor in Voigt notation and other elasticity related parameters. The tensor $D_{ij}$ is outputted in order to make sure that relationship
+\begin{equation}
+\alpha_{kl} = \theta \delta_{kl} - D_{kl} \nonumber
+\end{equation}
+holds. The other parameters will be used later in the effective/averaged effective equation solver.
+
+\section{Obtaining interface properties} \label{sec:presim-end}
+
+The equations, which are solved to obtain the effective interior properties, are described in the main paper as well as in the related paper <arXiv:1604.02880>. The results for the interface can be obtained by executing in folder ``2\_Interface'' the help script
+\begin{lstlisting}[language=tex]
+./3D_MSE_bc_do_all.sh
+\end{lstlisting}
+which executes the FreeFem++ scripts ``3D\_MSE\_bc\_Ksolver.edp'' and ``3D\_MSE\_bc\_Lsolver.edp'' for all (forced) problem indices. This execution step outputs both plane averaged field profiles over vertical distance as well as components of the $K_{ij}$ and $L_{ij3}$ tensors.
+
+\section{Running the effective equation solver}
+
+The effective equation solver is located in folder ``3\_effective\_solver'' and can be executed in command line by entering
+\begin{lstlisting}[language=tex]
+FreeFem++ 2DfluidPEmedium_cavity_UnsteadyNStokes.edp
+\end{lstlisting}
+This execution produces visual representation of generated mesh for both free fluid and poroelastic domain, as well as 2D isocontour plots for velocity and deformation fields. In addition, the script outputs $4$ line probes, $2$ for fluid velocity and deformation fields, respectively. The problem solved (and the parameters given) is the steady Stokes cavity flow as described in the main paper, but the solver is capable of solving time-dependent Navier-Stokes problems. The parameters for the microstructure should be entered from simulations carried out over sections~\ref{sec:presim-start} to \ref{sec:presim-end}.
+
+Parameters in the solver should be self-explanatory with the accompanying comments. One non-trivial aspect is transferring the interface results from the interface problem in ``2\_Interface'' to solver script. One has to be careful by observing the tensor indices. For example, a possible result file from $L_{ijk}$ solver might look like
+\begin{lstlisting}[language=tex]
+cat 3D_MSE_bc_Li23_intf.txt
+# zintf, L1kl, L2kl, L3kl
+0 0.000321191 0.186116 1.3653e-05
+\end{lstlisting}
+from where we find non-zero element $L_{223}$. The value of this tensor component then must be correspondingly entered in position $(2,3)$ in $L_{2ij}$ matrix, as shown below
+\begin{lstlisting}[numbers=left,firstnumber=97]
+real[int,int] intfL2 = [ [0, 0, 0      ],
+                         [0, 0, 1.86e-1],
+                         [0, 0, 0      ] ];   // Interface slip length matrix L2kl   
+\end{lstlisting}
+Other non-zero elements (after observing convergence) must be treated in the same way, that is, analysed element by element and entered in the correct positions of the solver matrices.
+
+Using the information provided above, one can use this tool to predict material properties for different geometries, and test such materials when exposed to the free fluid.
+
+In the following section we quickly present the weak form, which the presented software solves for readers interested in more details.
+
+\subsection{Weak form}
+
+In the presented solver, we discretise the equations presented in main paper but rewritten in dimensionless form in the microscale coordinate. Equations in the free fluid region are
+\begin{align}
+\ord^2 Re_m \left( \pdt u_i  + u_j u_{i,j} \right) & = \Sigma_{ij,j}, &  \Sigma_{ij} & = -p \delta_{ij} + 2 \ord \str{}{ij}{u}  & \mbox{in } \Omega_f, \\
+u_{i,i} & = 0, & &  & \mbox{in } \Omega_f, 
+\end{align}
+whereas equations in poro-elastic region are
+\begin{align}
+- \left( \mathcal{K}_{ij} \frac{1}{\ord} \tilde{p}_{,j} \right)_{,i} & = - \alpha_{kl} \str{}{kl}{ \pdt v }  - \ord \mathcal{E} \pdt \tilde{p}   & \mbox{in } \Omega_p,\\
+\ord \left(1 - \theta \right) \bar{\bar{\rho}} \pdt^2 v_i & = \left[ \frac{\bar{\bar{E}}}{\ord} \mathcal{C}_{ijmn} \str{}{mn}{ v } \right]_{,j} - \alpha_{ij} \tilde{p}_{,j}   & \mbox{in } \Omega_p,
+\end{align}
+and boundary conditions between free fluid and poroelastic medium reads as
+\begin{align}
+u_i - \pdt v_i & =  - \mathcal{\bar{K}}_{ij} \frac{1}{\ord} \tilde{p}_{,j} + \mathcal{\bar{L}}_{ijk} \left( u_{j,k} + u_{k,j} \right)  & & \textrm{at}\qquad \Gamma, \\
+p - \tilde{p} & = 0  & & \textrm{at}\qquad \Gamma, \\
+\Sigma_{ij} n_j & = \left[ \frac{\bar{\bar{E}}}{\ord} \mathcal{C}_{ijmn} \str{}{mn}{ v } - \alpha_{ij} \tilde{p} \right] n_j  & & \textrm{at}\qquad \Gamma.
+\end{align}
+
+Here we write the equations in the weak form. The resulting weak formulation is regrouped to pull to the left all unknowns, and to the right all the knowns. The implicit Euler scheme for fluid viscous stress is used, and explicit Adams-Bashforth 2nd order scheme is used for the non-linear terms. 
+Equations in the free fluid region are
+\begin{align}
+& \ord^2 Re_m \int\limits_{\Omega} \frac{1}{\Delta t} u_i^{n+1} \hat{u}_i \,\mathit{d\Omega} + \int\limits_{\Omega} \Sigma^{n+1}_{ij} \epsilon_{ij} \left( \hat{u} \right)\,\mathit{d\Omega} - \int\limits_{\pd \Omega} \Sigma^{n+1}_{ij} n_{j} \hat{u}_i\,\mathit{dS}  = \\
+& = \ord^2 Re_m \int\limits_{\Omega} \left( \frac{1}{\Delta t} u_i^{n} - \frac{3 }{2} u^{n}_j u^{n}_{i,j} + \frac{1}{2} u^{n-1}_j u^{n-1}_{i,j} \right) \hat{u}_i \,\mathit{d\Omega}, \\
+& \int\limits_{\Omega}  u^{n+1}_{i,i} \hat{p} \,\mathit{d\Omega} = 0, 
+\end{align}
+whereas equations to be solved in poro-elastic region are
+\begin{align}
+& \int\limits_{\Omega} \frac{1}{\Delta t} \left( \alpha_{kl} \str{n+1}{kl}{ v } + \ord \mathcal{E} \tilde{p}^{n+1} \right) \hat{p}\,\mathit{d\Omega} +  \frac{1}{\ord} \int\limits_{\Omega} \mathcal{K}_{ij} \tilde{p}^{n+1}_{,j} \hat{p}_{,i} \,\mathit{d\Omega} -  \frac{1}{\ord} \int\limits_{\pd \Omega} \mathcal{K}_{ij} \tilde{p}^{n+1}_{,j} n_{i} \hat{p} \,\mathit{dS} = \nonumber \\
+& = \int\limits_{\Omega} \frac{1}{\Delta t} \left( \alpha_{kl} \str{n}{kl}{ v } + \ord \mathcal{E} \tilde{p}^{n} \right) \hat{p}\,\mathit{d\Omega}, \\
+& \ord \left( 1 - \theta \right) \bar{\bar{\rho}} \int\limits_{\Omega} \frac{1}{\Delta t^2} v^{n+1}_i \hat{v}_i \,\mathit{d\Omega} + \frac{\bar{\bar{E}}}{\ord} \int\limits_{\Omega}  \mathcal{C}_{ijmn} \str{}{mn}{v^{n+1}} \str{}{ij}{\hat{v}} \,\mathit{d\Omega} - \\
+& - \frac{\bar{\bar{E}}}{\ord} \int\limits_{\pd \Omega}  \mathcal{C}_{ijmn} \str{}{mn}{v^{n+1}} n_j \hat{v}_i \,\mathit{dS} + \int\limits_{\Omega} \alpha_{ij} \tilde{p}^{n+1}_{,j} \hat{v}_i \,\mathit{d\Omega} =  \ord \left( 1 - \theta \right) \bar{\bar{\rho}} \int\limits_{\Omega} \frac{1}{\Delta t^2} \left( 2 v^{n}_i - v^{n-1}_i \right) \hat{v}_i \,\mathit{d\Omega}. \nonumber
+\end{align}
+Boundary conditions between free fluid and poroelastic medium reads as
+\begin{align}
+u^{n+1}_i - \frac{v^{n+1}_i}{\Delta t} + \mathcal{\bar{K}}_{ij} \frac{1}{\ord} \tilde{p}^{n+1}_{,j} - \mathcal{\bar{L}}_{ijk} \left( u^{n+1}_{j,k} + u^{n+1}_{k,j} \right) & = - \frac{v^{n}_i}{\Delta t}   & & \textrm{at}\qquad \Gamma, \\
+p^{n+1} - \tilde{p}^{n+1} & =  0 & & \textrm{at}\qquad \Gamma, \\
+\Sigma_{ij}^{n+1} n_j - \left[ \frac{\bar{\bar{E}}}{\ord} \mathcal{C}_{ijmn} \str{}{mn}{ v^{n+1} } - \alpha_{ij} \tilde{p}^{n+1} \right] n_j & = 0 & & \textrm{at}\qquad \Gamma.
+\end{align}
+
+This weak formulation is implemented in the FreeFem++ solver using a set of macros, which group the different parts of the weak form (based on different combinations between the variable and test-function). The addition of Lagrangian multipliers can be understood from the solver code or documentation of software ``Porous\_full\_bc2ifScales'' module ``2D\_MSE\_bc\_velocity''.
+
+
+\section{DNS solver and post-processing}
+
+The DNS solver, post-processing routines and final flow and displacement field can be found in directory ``4\_DNS\_solver''. In this section we briefly explain, how the solution fields were obtained and also how to post-process the field data.
+
+The DNS solver includes a separate parameter file ``3D\_DNS\_parameters.in'', in which the geometry is defined similarly as in previous sections. Recall from the main paper, that the geometry is one-structure thick cavity slice. Therefore number of microsctructures in the cavity has to bee defined. It is done by setting parameters $NbotX$ and $NbotD$. The example parameter file corresponds to the finest results reported in the main paper. Given the parameter file, geometry definition files and meshes can be obtained by executing
+\begin{lstlisting}[language=tex]
+./3D_DNS_gen_geom.py
+gmsh -3 3D_DNS_gen_geomF.geo
+gmsh -3 3D_DNS_gen_geomS.geo
+\end{lstlisting}
+After that, one can execute the solver ``3D\_DNS\_solver.edp'' and wait until GMRES solver produces a solution. Alternatively (what we have done), one can start with a coarser mesh, and use the solution as an initial guess for the finer simulation. The published data-set is obtained in this way.
+
+In order to post-process the fields used to produce the plots in the main paper, one has to extract the archive containing the fields and meshes
+\begin{lstlisting}[language=tex]
+tar -xvf 3D_DNS_solution.tar.gz
+\end{lstlisting}
+
+After extracting the needed files, one can use two provided FreeFem++ post-processing tools. The first tool ``3D\_DNS\_post\_line.edp'' provides output of raw line probes of specified coordinates, while the second tool ``3D\_DNS\_post.edp'' provides output of $y$-averaged line probe values of specified coordinates in a two-dimensional $(x,z)$ plane. The averaging is carried out as defined in the main paper. We have also found that introducing a discontinuous FE space (piecewise constant P0) is useful in certain cases.
+
+
+
+\end{document}
