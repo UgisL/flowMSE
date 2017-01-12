@@ -1,3 +1,33 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2017
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Poroelastic_full_strCont.
+//
+// Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Poroelastic_full_strCont is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+//
+// This software is meant to be executed using FreeFem++. You should have recieved a copy
+// of it along with Poroelastic_full_strCont. If not, get it from <http://www.freefem.org/>.
+//
+// It has been tested to produce accurate results using FreeFem++ version 3.37.
+//
+// Execute this file by running "FreeFem++ 3D_DNS_solver.edp" in command
+// line (Unix) or open it by graphical FreeFem++ dialogue (Windows).  For more detailed description,
+// consult documentation in <doc/> and documentation of FreeFem++. 
+
 verbosity=5;
 
 load "UMFPACK64"

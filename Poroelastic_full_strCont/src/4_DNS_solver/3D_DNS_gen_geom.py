@@ -1,14 +1,34 @@
 #!/usr/bin/python2.7
-# -----------------------------------------------------------------------------------------------------
-# Phython script to generate geo file for mesh generation.
-# Boundary points are generated in order to match the required mesh.
-# Note that for curved surfaces - up to 4 boundaries are allowed!!!
+# ----------------------------------------------- COPYRIGHT --------------------------------------
+# Copyright 2016-2017
+# Ugis Lacis, ugis.lacis@gmail.com
+# Shervin Bagheri, shervin.bagheri@mech.kth.se
+# -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+# This file is part of Poroelastic_full_strCont.
 #
-# Author:
-# Ugis Lacis
-# ugis@mech.kth.se
-# 10.04.2015
-# -----------------------------------------------------------------------------------------------------
+# Poroelastic_full_strCont is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Poroelastic_full_strCont is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with Poroelastic_full_strCont. If not, see <http://www.gnu.org/licenses/>.
+# ---------------------------------------------- DESCRIPTION -------------------------------------
+#
+# This software is generating the geometry definition for Gmsh mesher. It defines all necessary
+# physical domains for the FreeFem++ solver. It is meant to be executed using Python. It has been
+# tested to produce a valid Gmsh geometry file using Python version 2.7, numpy version 1.6.2 and
+# scipy version 0.11.0.
+#
+# Execute this file by typing "./3D_DNS_gen_geom.py" in command line (Unix). Make sure that
+# the top line in this file includes valid path to Python and that case file
+# <3D_DNS_parameters.in> exists. For more information, consult documentation in <doc/>   
+
 
 import sys
 import numpy as np
