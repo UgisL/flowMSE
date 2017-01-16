@@ -34,7 +34,7 @@
 \fancyfoot[C]{}
 \fancyfoot[R]{Ugis Lacis}
 \fancyhead[L]{Documentation}
-\fancyhead[C]{2D\_MSE\_bc\_velocity v1.01}
+\fancyhead[C]{2D\_MSE\_bc\_velocity}
 \fancyhead[R]{Page \thepage}
 
 \usepackage{times}
@@ -135,7 +135,7 @@
 
 \section{General information}
 
-This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <arXiv:1604.02880> (arXiv preprint).
+This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <DOI:10.1017/jfm.2016.838> (open access).
 
 The contents of this module are listed below.
 %[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
@@ -178,7 +178,7 @@ The result of the simulation script is tensor fields at the full interface cell.
 
 \subsection{Variational formulation}
 
-The developed software solve coupled systems of Stoke's equations. By fixing indices $k,l$, we set $u_i^{K^{\pm}} = K^{\pm}_{ik}$, $u_i^{L^{\pm}} = L^{\pm}_{ikl}$, $p^{K^{\pm}} = A^{\pm}_{k}$ and $p^{L^{\pm}} = B^{\pm}_{kl}$. Then the governing equations take form (see paper <arXiv:1604.02880> for all details)
+The developed software solve coupled systems of Stoke's equations. By fixing indices $k,l$, we set $u_i^{K^{\pm}} = K^{\pm}_{ik}$, $u_i^{L^{\pm}} = L^{\pm}_{ikl}$, $p^{K^{\pm}} = A^{\pm}_{k}$ and $p^{L^{\pm}} = B^{\pm}_{kl}$. Then the governing equations take form (see paper<DOI:10.1017/jfm.2016.838> for all details)
 \begin{align}
 - p^{K^{+}}_{,i} + u^{K^{+}}_{i,jj} & = 0, &  - p^{L^{+}}_{,i} + u^{L^{+}}_{i,jj} & = 0, \\
 u^{K^{+}}_{i,i} & = 0, & u^{L^{+}}_{i,i} & = 0 , \\

@@ -14,11 +14,13 @@ different scientific contributions:
 Porous_full_bc2ifScales    -- software for porous structures with 2 interface
                               velocity scales
                               Associated scientific contributions:
+                              <DOI:10.1017/jfm.2016.838> (open-access)
                               <arXiv:1604.02880>
 Poroelastic_fill_strCont   -- software for poroelastic structures with
                               bc2ifScales velocity condition and stress
                               continuity condition
-                              (will appear soon)
+                              Associated scientific contribution:
+                              <arXiv:1701.03596>
 
 For more detailed information of each software, consult the corresponding
 README file within the software directory and corresponding scientific
