@@ -19,7 +19,8 @@ Porous_full_bc2ifScales    -- software for porous structures with 2 interface
 Poroelastic_fill_strCont   -- software for poroelastic structures with
                               bc2ifScales velocity condition and stress
                               continuity condition
-                              Associated scientific contribution:
+                              Associated scientific contributions:
+                              <DOI:10.1098/rspa.2016.0932> (open-access)
                               <arXiv:1701.03596>
 
 For more detailed information of each software, consult the corresponding

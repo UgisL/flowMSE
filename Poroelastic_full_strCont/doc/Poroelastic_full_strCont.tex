@@ -135,7 +135,7 @@
 
 \section{General information}
 
-This software is a script compilation for FreeFem++ to solve interior and interface cell problems to arrive with coefficients in governing equations of poroelastic material and boundary condition (BC) between poroelastic material medium and free fluid. This software gives the possibility to compute these coefficients in three-dimensions (3D) for fully connected poroelastic skeleton. If you find this software useful, please cite the corresponding publication <arXiv:1701.03596> (arXiv preprint).
+This software is a script compilation for FreeFem++ to solve interior and interface cell problems to arrive with coefficients in governing equations of poroelastic material and boundary condition (BC) between poroelastic material medium and free fluid. This software gives the possibility to compute these coefficients in three-dimensions (3D) for fully connected poroelastic skeleton. If you find this software useful, please cite the corresponding publication <DOI:10.1098/rspa.2016.0932> (open-access).
 
 The contents of this software are listed below.
 %[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
@@ -161,11 +161,11 @@ src/0_setup/3D_MSE_gen_geom.py
 The first file is an example parameter file, containing:
 \begin{enumerate}
     \item Size of the interface cell ($ztop$ -- $z$ coordinate of upper boundary, $Nbot$ -- number of structures below the interface, resulting in $z = - Nbot$ coordinate of the lower boundary). The interface location is always at $z = 0$;
-	\item Definition of the one solid microstructure with $a_1 = eA$, $a_2 = eB$, $a_3 = eC$, $r = cR$ and $\phi = phi$. See the main paper <arXiv:1701.03596> for explanations of geometrical parameters;
+	\item Definition of the one solid microstructure with $a_1 = eA$, $a_2 = eB$, $a_3 = eC$, $r = cR$ and $\phi = phi$. See the main paper <DOI:10.1098/rspa.2016.0932> for explanations of geometrical parameters;
     \item Mesh spacings $\Delta s_1 = dsMin$ and $\Delta s_2 = dsMax$.
 \end{enumerate}
 
-Given the required parameters (the example input file contains parameters for monoclynic symmetric geometry from the main paper <arXiv:1701.03596> with intermediate resolution), the geometry definition can be generated executing the Phython script
+Given the required parameters (the example input file contains parameters for monoclynic symmetric geometry from the main paper <DOI:10.1098/rspa.2016.0932> with intermediate resolution), the geometry definition can be generated executing the Phython script
 \begin{lstlisting}[language=tex]
 ./3D_MSE_gen_geom.py
 \end{lstlisting}
@@ -177,7 +177,7 @@ where $X$ should be replace by $I$, $Is$, $B$, $L$ and $T$. The generated meshes
 
 \section{Obtaining interior properties}
 
-The equations, which are solved to obtain the effective interior properties, are described in the main paper <arXiv:1701.03596>. Standard weak forms for Stokes equations and linear elasticity equations are used. The final results for the interior can be obtained by running the FreeFem++ software in folder ``1\_Interior'' in the command line
+The equations, which are solved to obtain the effective interior properties, are described in the main paper <DOI:10.1098/rspa.2016.0932>. Standard weak forms for Stokes equations and linear elasticity equations are used. The final results for the interior can be obtained by running the FreeFem++ software in folder ``1\_Interior'' in the command line
 \begin{lstlisting}[language=tex]
 FreeFem++ -nw 3D_interiorC_solver.edp
 FreeFem++ -nw 3D_interiorK_solver.edp
@@ -190,7 +190,7 @@ holds. The other parameters will be used later in the effective/averaged effecti
 
 \section{Obtaining interface properties} \label{sec:presim-end}
 
-The equations, which are solved to obtain the effective interior properties, are described in the main paper <arXiv:1701.03596> as well as in the related paper <DOI:10.1017/jfm.2016.838>. The results for the interface can be obtained by executing in folder ``2\_Interface'' the help script
+The equations, which are solved to obtain the effective interior properties, are described in the main paper <DOI:10.1098/rspa.2016.0932> as well as in the related paper <DOI:10.1017/jfm.2016.838>. The results for the interface can be obtained by executing in folder ``2\_Interface'' the help script
 \begin{lstlisting}[language=tex]
 ./3D_MSE_bc_do_all.sh
 \end{lstlisting}
@@ -202,7 +202,7 @@ The effective equation solver is located in folder ``3\_effective\_solver'' and 
 \begin{lstlisting}[language=tex]
 FreeFem++ 2DfluidPEmedium_cavity_UnsteadyNStokes.edp
 \end{lstlisting}
-This execution produces visual representation of generated mesh for both free fluid and poroelastic domain, as well as 2D isocontour plots for velocity and deformation fields. In addition, the script outputs $4$ line probes, $2$ for fluid velocity and deformation fields, respectively. The problem solved (and the parameters given) is the steady Stokes cavity flow as described in the main paper <arXiv:1701.03596>, but the solver is capable of solving time-dependent Navier-Stokes problems. The parameters for the microstructure should be entered from simulations carried out over sections~\ref{sec:presim-start} to \ref{sec:presim-end}.
+This execution produces visual representation of generated mesh for both free fluid and poroelastic domain, as well as 2D isocontour plots for velocity and deformation fields. In addition, the script outputs $4$ line probes, $2$ for fluid velocity and deformation fields, respectively. The problem solved (and the parameters given) is the steady Stokes cavity flow as described in the main paper <DOI:10.1098/rspa.2016.0932>, but the solver is capable of solving time-dependent Navier-Stokes problems. The parameters for the microstructure should be entered from simulations carried out over sections~\ref{sec:presim-start} to \ref{sec:presim-end}.
 
 Parameters in the solver should be self-explanatory with the accompanying comments. One non-trivial aspect is transferring the interface results from the interface problem in ``2\_Interface'' to solver script. One has to be careful by observing the tensor indices. For example, a possible result file from $L_{ijk}$ solver might look like
 \begin{lstlisting}[language=tex]
@@ -224,7 +224,7 @@ In the following section we quickly present the weak form, which the presented s
 
 \subsection{Weak form}
 
-In the presented solver, we discretise the equations presented in main paper <arXiv:1701.03596> but rewritten in dimensionless form in the microscale coordinate. Equations in the free fluid region are
+In the presented solver, we discretise the equations presented in main paper <DOI:10.1098/rspa.2016.0932> but rewritten in dimensionless form in the microscale coordinate. Equations in the free fluid region are
 \begin{align}
 \ord^2 Re_m \left( \pdt u_i  + u_j u_{i,j} \right) & = \Sigma_{ij,j}, &  \Sigma_{ij} & = -p \delta_{ij} + 2 \ord \str{}{ij}{u}  & \mbox{in } \Omega_f, \\
 u_{i,i} & = 0, & &  & \mbox{in } \Omega_f, 
@@ -269,7 +269,7 @@ This weak formulation is implemented in the FreeFem++ solver using a set of macr
 
 The DNS solver, post-processing routines and final flow and displacement field can be found in directory ``4\_DNS\_solver''. In this section we briefly explain, how the solution fields were obtained and also how to post-process the field data.
 
-The DNS solver includes a separate parameter file ``3D\_DNS\_parameters.in'', in which the geometry is defined similarly as in previous sections. Recall from the main paper <arXiv:1701.03596>, that the geometry is one-structure thick cavity slice. Therefore number of microsctructures in the cavity has to bee defined. It is done by setting parameters $NbotX$ and $NbotD$. The example parameter file corresponds to the finest results reported in the main paper <arXiv:1701.03596>. Given the parameter file, geometry definition files and meshes can be obtained by executing
+The DNS solver includes a separate parameter file ``3D\_DNS\_parameters.in'', in which the geometry is defined similarly as in previous sections. Recall from the main paper <DOI:10.1098/rspa.2016.0932>, that the geometry is one-structure thick cavity slice. Therefore number of microsctructures in the cavity has to bee defined. It is done by setting parameters $NbotX$ and $NbotD$. The example parameter file corresponds to the finest results reported in the main paper <DOI:10.1098/rspa.2016.0932>. Given the parameter file, geometry definition files and meshes can be obtained by executing
 \begin{lstlisting}[language=tex]
 ./3D_DNS_gen_geom.py
 gmsh -3 3D_DNS_gen_geomF.geo
@@ -277,12 +277,12 @@ gmsh -3 3D_DNS_gen_geomS.geo
 \end{lstlisting}
 After that, one can execute the solver ``3D\_DNS\_solver.edp'' and wait until GMRES solver produces a solution. Alternatively (what we have done), one can start with a coarser mesh, and use the solution as an initial guess for the finer simulation. The published data-set is obtained in this way.
 
-In order to post-process the fields used to produce the plots in the main paper <arXiv:1701.03596>, one has to extract the archive containing the fields and meshes
+In order to post-process the fields used to produce the plots in the main paper <DOI:10.1098/rspa.2016.0932>, one has to extract the archive containing the fields and meshes
 \begin{lstlisting}[language=tex]
 tar -xvf 3D_DNS_solution.tar.gz
 \end{lstlisting}
 
-After extracting the needed files, one can use two provided FreeFem++ post-processing tools. The first tool ``3D\_DNS\_post\_line.edp'' provides output of raw line probes of specified coordinates, while the second tool ``3D\_DNS\_post.edp'' provides output of $y$-averaged line probe values of specified coordinates in a two-dimensional $(x,z)$ plane. The averaging is carried out as defined in the main paper <arXiv:1701.03596>. We have also found that introducing a discontinuous FE space (piecewise constant P0) is useful in certain cases.
+After extracting the needed files, one can use two provided FreeFem++ post-processing tools. The first tool ``3D\_DNS\_post\_line.edp'' provides output of raw line probes of specified coordinates, while the second tool ``3D\_DNS\_post.edp'' provides output of $y$-averaged line probe values of specified coordinates in a two-dimensional $(x,z)$ plane. The averaging is carried out as defined in the main paper <DOI:10.1098/rspa.2016.0932>. We have also found that introducing a discontinuous FE space (piecewise constant P0) is useful for the indicator function of each domain.
 
 
 
