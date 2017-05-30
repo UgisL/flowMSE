@@ -279,10 +279,10 @@ After that, one can execute the solver ``3D\_DNS\_solver.edp'' and wait until GM
 
 In order to post-process the fields used to produce the plots in the main paper <DOI:10.1098/rspa.2016.0932>, one has to extract the archive containing the fields and meshes
 \begin{lstlisting}[language=tex]
-tar -xvf 3D_DNS_solution.tar.gz
+tar -xvf 3D_DNS_solution_XXX.tar.gz
 \end{lstlisting}
 
-After extracting the needed files, one can use two provided FreeFem++ post-processing tools. The first tool ``3D\_DNS\_post\_line.edp'' provides output of raw line probes of specified coordinates, while the second tool ``3D\_DNS\_post.edp'' provides output of $y$-averaged line probe values of specified coordinates in a two-dimensional $(x,z)$ plane. The averaging is carried out as defined in the main paper <DOI:10.1098/rspa.2016.0932>. We have also found that introducing a discontinuous FE space (piecewise constant P0) is useful for the indicator function of each domain.
+``XXX'' should be replaced either by ``Cubic'' or ``Mono'' for solutions with cubic-symmetric microscale structure or monoclynic-symmetric microscale structure, see main paper. After extracting the needed files, one can use two provided FreeFem++ post-processing tools. The first tool ``3D\_DNS\_post\_line.edp'' provides output of raw line probes of specified coordinates, while the second tool ``3D\_DNS\_post.edp'' provides output of $y$-averaged line probe values of specified coordinates in a two-dimensional $(x,z)$ plane. The averaging is carried out as defined in the main paper <DOI:10.1098/rspa.2016.0932>. We have also found that introducing a discontinuous FE space (piecewise constant P0) is useful for the indicator function of each domain.
 
 
 

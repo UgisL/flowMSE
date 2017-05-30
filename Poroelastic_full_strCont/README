@@ -62,12 +62,13 @@ files.
 
 --> To post-process and investigate the DNS fields of the same cavity problem
     1) In directory "src/4_DNS_solver" execute:
-    tar -xvf 3D_DNS_solution.tar.gz
+    tar -xvf 3D_DNS_solution_XXX.tar.gz
     FreeFem++ -nw 3D_DNS_post_line.edp
     FreeFem++ -nw 3D_DNS_post.edp
 
 Executing these two post-processing tools will give line probes of both raw
-field data and also y-averaged field data. For further post-processing options,
+field data and also y-averaged field data. "XXX" should be replaced either by
+"Cubic" or "Mono", see main paper. For further post-processing options,
 consult FreeFem++ documentation. For comments on obtaining the DNS fields, see
 the documentation.
 
