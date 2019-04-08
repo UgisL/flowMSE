@@ -5,7 +5,7 @@
 
 // Volume averaging macro, need avgV#var defined in the main file
 // (to avoid multiple definitions of the variable.
-macro volAvg(miny,maxy,Ntrp,MSH,var)
+macro volAvg(miny,maxy,Ntrp,MSH,var,outvar)
 {
 int  Nbox   = #Ntrp;
 real dzstep = ((maxy)-(miny)-2.0e-6)/Nbox;
@@ -13,7 +13,7 @@ real[int] smpval(Nbox+1);
 real tmpval = 0;
 for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(MSH,levelset=(y- (miny+1.0e-6+i*dzstep) ))( var );
 for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
-avgV#var = tmpval;
+outvar = tmpval;
 }
 // EOM
 
@@ -39,6 +39,23 @@ for (int i=0; i<Nsp; i++)
     resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " "
             << PlaneUavg(3,i) << " " << PlaneUavg(4,i) << endl;
 }
+// EOM
+
+// Macro for plotting
+macro plotfields(name,id,nlev,clrschm)
+if(name=="perm")
+{
+    plot(uper#id,uK#id,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+    plot(vper#id,vK#id,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+    plot(      pK#id,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+}
+if(name=="slip")
+{
+    plot(uL,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+    plot(vL,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+    plot(pL,nbiso=#nlev,hsv=#clrschm,fill=1,value=1);
+}
+
 // EOM
 
 // Colorschemes

@@ -29,6 +29,7 @@
 // documentation in <doc/> and documentation of FreeFem++.
 
 load "UMFPACK64"
+load "lapack"
 include "2D_MSE_bc_proc.idp"
 
 // Reduce output to minimum
@@ -43,10 +44,19 @@ real ymax = Nstr;
 // Definition of the porous structure
 // Need to defined either geomPreset macro (cylinder,laycyl,ellipse) or
 // border macros directly. (note - tip of the top structure must be zero!)
-macro geomPreset()cylinder// EOM
 
-// Solid volume fraction
-real thetas = 0.02;
+// macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
+
+// macro geomPreset()laycyl// EOM   // laycyl pre-set expects real "thetas" and "thetas0" (solid vf) to be defined
+
+// ellipse pre-set expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0) and "ang" (turn angle) to be defined
+macro geomPreset()ellipse// EOM
+    
+// Geometry parameters
+real thetas  = 0.02;
+real thetas0 = 0.15;
+real ar      = 2.0;
+real ang     = 0.0/180.0*pi;
 
 include "2D_MSE_bc_geom.idp"
 // This provides macros defB to define border and genM for mesh generation, as
@@ -59,9 +69,6 @@ int nIntf = 4;
 // Structure refinement
 int nS = 6;
 
-// Problem index
-int indk = 1;
-
 // Sampling rate of vertical distance unit length
 int Nsamp = 60;
 
@@ -72,6 +79,8 @@ real intfShft = 0.1;
 // Check that we are above the defined smooth structure (meshing requirement)
 assert(intfShft>=0.0001);
 
+// Problem index
+int indk;
 
 // First, define and solve the fully periodic interior Darcy problem, just below the interface cell
 // Define the geometry
@@ -85,9 +94,6 @@ mesh ThP=buildmesh( sqr1p(n)+sqr2p(nIntf*n)+sqr3p(n)+sqr4p(nIntf*n)+genMi(Nstr) 
 // Define the FE spaces for periodic domain and solve for the field
 fespace UUPhP(ThP,[P2,P2,P1],periodic=[[2,x],[4,x],[1,y],[3,y]]);
 UUPhP [uper,vper,pper], [uper1,vper1,pper1], [uper2,vper2,pper2], [uu,vv,pp];
-real[int,int] itrK(2,2);
-real[int,int] itfK(2,2);
-real[int] avgDiv(2);
 problem stokesKi([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
     int2d(ThP)( - (-pper + 2.0*dx(uper))*dx(uu) - (dy(uper)+dx(vper))*dy(uu)
                 - (-pper + 2.0*dy(vper))*dy(vv) - (dx(vper)+dy(uper))*dx(vv)
@@ -95,6 +101,8 @@ problem stokesKi([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
     + int2d(ThP)( (indk==1)*uu+(indk==2)*vv )
     + on(5,uper=0,vper=0);
 
+real[int,int] itrK(2,2);
+real[int] avgDiv(2);
 indk = 1; stokesKi;
 itrK(0,0) = int2d(ThP)(uper);
 itrK(1,0) = int2d(ThP)(vper);
@@ -139,9 +147,9 @@ fespace UUPhC(ThC,[P2,P2,P1],periodic=[[1,y],[3,y]]);
 // Define FE functions for problem solution
 UUPhC [u,v,p], [uuc,vvc,ppc];
 // Define FE functions for solution storage
-UUPhC [uK1,vK1,pK1], [uK2,vK2,pK2];
+UUPhC [uK1,vK1,pK1], [uK2,vK2,pK2], [uL,vL,pL];
 
-// Define the problem
+// Define the problem for interface permeability
 problem stokesKc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     int2d(ThC)( - (-p + 2.0*dx(u))*dx(uuc) - (dy(u)+dx(v))*dy(uuc)
                 - (-p + 2.0*dy(v))*dy(vvc) - (dx(v)+dy(u))*dx(vvc)
@@ -149,36 +157,82 @@ problem stokesKc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     + int2d(ThC)( (y<=intfShft)*((indk==1)*uuc+(indk==2)*vvc) )
     + on(5,u=0,v=0) + on(4,u=uper,v=vper);
 
-// Solve the permeability problem
+// Solve the permeability problem, compute effective parameters
 uper[] = uper1[];
-indk = 1; stokesKc;
-real avgVu; volAvg(ymax-1,ymax,50,ThC,u) itfK(0,0) = avgVu;
-real avgVv; volAvg(ymax-1,ymax,50,ThC,v) itfK(1,0) = avgVv;
+indk = 1; stokesKc; uK1[] = u[];
+real[int,int] itfK(2,2);
+real[int,int] tildeF1(1,2), vecF1(1,2);
+// Volume average for interiour permeability
+real avgVu; volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,0) = avgVu;
+real avgVv; volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,0) = avgVv;
+// Volume avarage for pressure jump
+real avgVpTop; volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
+real avgVpBot; volAvg(ymax-1,ymax,50,ThC,p,avgVpBot)
+tildeF1(0,0) = avgVpBot - avgVpTop;
+// Check the divergence of the solution
 avgDiv(0) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
-uK1[] = u[];
+// Repeate for the second forcing direction
 uper[] = uper2[];
-indk = 2; stokesKc;
-volAvg(ymax-1,ymax,50,ThC,u) itfK(0,1) = avgVu;
-volAvg(ymax-1,ymax,50,ThC,v) itfK(1,1) = avgVv;
+indk = 2; stokesKc; uK2[] = u[];
+volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,1) = avgVu;
+volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,1) = avgVv;
+volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
+volAvg(ymin,ymin+1,50,ThC,p,avgVpBot)
+tildeF1(0,1) = avgVpBot - avgVpTop;
 avgDiv(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
-uK2[] = u[];
+// Transform the resistance vector in velocity space
+real[int,int] invK = itrK^-1;
+vecF1 = tildeF1*invK;
+for(int i=0;i<2;i++) vecF1(0,i) = -vecF1(0,i); // Adding negative sign
+
+// Define the problem for the slip
+problem stokesLc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
+    int2d(ThC)( - (-p + 2.0*dx(u))*dx(uuc) - (dy(u)+dx(v))*dy(uuc)
+                - (-p + 2.0*dy(v))*dy(vvc) - (dx(v)+dy(u))*dx(vvc)
+                + (dx(u)+dy(v))*ppc  )
+    + int1d(ThC,8)( uuc )
+    + on(4,5,u=0,v=0);
+
+// Solve the slip problem, do the post-processing
+real itfL, tildeF2, vecF2;
+real[int] chckZero(2);
+stokesLc; uL[] = u[];
+volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfL        = avgVu;
+volAvg(ymax-1,ymax,50,ThC,v,avgVv) chckZero(0) = avgVv;
+volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
+volAvg(ymin,ymin+1,50,ThC,p,avgVpBot)
+tildeF2 = avgVpBot - avgVpTop;
+chckZero(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
+vecF2 = tildeF2/itfL;
 
 // Output information about interior computation
 cout << endl;
 cout << " ---------------- Interface cell computation done ---------------- " << endl;
-cout << " Investigated interface location yif = " << intfShft << endl;
-cout << " itfK/l = " << itfK << endl;
-cout << " Average divergence = " << avgDiv << endl;
+cout << " Investigated interface location yif = " << intfShft << endl << endl;
+
+cout << " ---------------- Interface permeability" << endl;
+cout << " itfK/l^2 = " << itfK << endl;
+cout << " tildeF1/(l*mu) = " << tildeF1 << endl;
+cout << " vecF1*l/mu = " << vecF1 << endl;
+cout << " Average divergence = " << avgDiv << endl << endl;
+
+cout << " ---------------- Interface slip" << endl;
+cout << " itfL/l = " << itfL << endl;
+cout << " tildeF2/mu = " << tildeF2 << endl;
+cout << " vecF2*l/mu = " << vecF2 << endl;
+cout << " Checks (divergence, itfnormalvel) = " << chckZero << endl;
 cout << " ----------------------------------------------------------------- " << endl << endl;
 
 // Output plane averaged results, permeability
 linAvgSave(ThC, Nsamp, uK1, vK1, pK1, "2D_bound_cond_Ki1prof.txt")
 linAvgSave(ThC, Nsamp, uK2, vK2, pK2, "2D_bound_cond_Ki2prof.txt")
+linAvgSave(ThC, Nsamp, uL, vL, pL, "2D_bound_cond_Lprof.txt")
+
 cout << " -------------- Plane average output to file done ---------------- " << endl;
 
-// Plot chosen results (colorscheme defined in the include file)
-plot(uper1,uK1,nbiso=80,hsv=colorsJET,fill=1,value=1);
-plot(vper1,vK1,nbiso=80,hsv=colorsJET,fill=1,value=1);
-plot(      pK1,nbiso=80,hsv=colorsJET,fill=1,value=1);
+// Plot chosen results (macro and colorscheme defined in the include file)
+// plotfields("perm",1,80,colorsJET)
+// plotfields("perm",2,80,colorsJET)
+plotfields("slip",1,80,colorsJET)
 
 cout << " ------------------- All computations done ----------------------- " << endl;

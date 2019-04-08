@@ -22,30 +22,83 @@ ENDIFMACRO
 // Isotropic cylinder, requires thetas to be defined in the main file
 IFMACRO(geomPreset,cylinder)
 real cylr   = sqrt(thetas/pi);
-real strL   = 2*pi*cylr;
+real strL   = 2*pi*cylr, strL0 = strL;
 assert(thetas > 0.0); assert(cylr < 0.5 );
 macro strBd0()border strBrd0 (t=0,2*pi) {x=cylr*cos(t); y=cylr*sin(t)-cylr;    label=5; } // EOM
 macro strBd(N)border strBrd#N(t=0,2*pi) {x=cylr*cos(t); y=cylr*sin(t)-cylr-#N; label=5; } // EOM
 ymin = -Nstr+0.5-cylr;
 cout << endl << endl;
 cout << " --------------- Defined isotropic cylinder geometry ------------- " << endl;
-cout << " Chose solid volume fraction, thetas = " << thetas << endl;
+cout << " Chosen solid volume fraction, thetas = " << thetas << endl;
 cout << " Resulting cylinder radius,   cylr   = " << cylr << endl;
 cout << " ----------------------------------------------------------------- " << endl;
 ENDIFMACRO
 
+// Layered cylinder, requires thetas and thetas0 to be defined in the main file
+IFMACRO(geomPreset,laycyl)
+real cylr   = sqrt(thetas/pi);
+real cylr0  = sqrt(thetas0/pi);
+real strL   = 2*pi*cylr;
+real strL0  = 2*pi*cylr0;
+assert(thetas > 0.0); assert(thetas0 > 0.0); assert(cylr < 0.5 );  assert(cylr0 < 0.5 );
+macro strBd0()border strBrd0 (t=0,2*pi) {x=cylr0*cos(t); y=cylr0*sin(t)-cylr0;    label=5; } // EOM
+macro strBd(N)border strBrd#N(t=0,2*pi) {x=cylr *cos(t); y=cylr *sin(t)-cylr0-#N; label=5; } // EOM
+ymin = -Nstr+0.5-cylr0;
+cout << endl << endl;
+cout << " --------------- Defined layered cylinder geometry ------------- " << endl;
+cout << " Chosen solid volume fractions, thetas = " << thetas << ", thetas0 = " << thetas0 << endl;
+cout << " Resulting cylinder radii, cylr = " << cylr << ", cylr = " << cylr0 << endl;
+cout << " ----------------------------------------------------------------- " << endl;
+ENDIFMACRO
+
+// Ellipse geometry, requires thetas, ar, ang to be defined in the main file
+IFMACRO(geomPreset,ellipse)
+load "gsl"
+real semiB = sqrt(thetas/(pi*ar)), semiA = ar*semiB;
+real ecc   = sqrt(1-semiB^2/semiA^2);
+real strL  = 4*semiA*gslsfellintEcomp(ecc,0), strL0 = strL;
+real ySft;
+if(ang == 0) ySft = semiB;
+else
+{
+    real parTm = atan(semiB/semiA*1/tan(ang));
+    ySft  = 2*((ang>0)-0.5)*(semiA*cos(parTm)*sin(ang) + semiB*sin(parTm)*cos(ang));
+}
+assert(thetas > 0.0); assert(semiA < 0.5 );
+macro strBd0()border strBrd0 (t=0,2*pi) {x=semiA*cos(t)*cos(ang) - semiB*sin(t)*sin(ang);
+                                         y=semiA*cos(t)*sin(ang) + semiB*sin(t)*cos(ang)-ySft;    label=5; } // EOM
+macro strBd(N)border strBrd#N(t=0,2*pi) {x=semiA*cos(t)*cos(ang) - semiB*sin(t)*sin(ang);
+                                         y=semiA*cos(t)*sin(ang) + semiB*sin(t)*cos(ang)-ySft-#N; label=5; } // EOM
+ymin = -Nstr+0.5-ySft;
+cout << endl << endl;
+cout << " --------------- Defined isotropic cylinder geometry ------------- " << endl;
+cout << " Chosen solid volume fraction, thetas = " << thetas << ", ar = " << ar << "," << endl;
+cout << " tilt angle ang = " << ang << " (rad)" << ", " << ang/pi*180 << " [deg]" << endl;
+cout << " Resulting ellipse semi-axis, semiA = " << semiA << ", semiB = " << semiB << "," << endl;
+cout << " and circumference strL = " << strL << endl; 
+cout << " ----------------------------------------------------------------- " << endl;
+ENDIFMACRO
+
+
+
+// Check if needed macro has been defined
+IFMACRO(!strBd0)
+cout << "ERROR: The macro 'geomPreset' must be set to allowed value!" << endl;
+cout << "Tip. Check allowed names in 2D_MSE_bc_geom.idp, use correct spelling and no white spaces!"
+exit(1);
+ENDIFMACRO
 
 // Unrolling border macros
 IFMACRO(Nstr,1)
 macro defB()strBd0// EOM
-macro genM()strBrd0(-strL*n*nS)// EOM
+macro genM()strBrd0(-strL0*n*nS)// EOM
 ENDIFMACRO
 
 IFMACRO(Nstr,2)
 macro defB()strBd0
 strBd(1)
 // EOM
-macro genM()strBrd0(-strL*n*nS)
+macro genM()strBrd0(-strL0*n*nS)
 +strBrd1(-strL*n*nS)// EOM
 ENDIFMACRO
 
@@ -53,7 +106,7 @@ IFMACRO(Nstr,3)
 macro defB()strBd0
 strBd(1)
 strBd(2)// EOM
-macro genM()strBrd0(-strL*n*nS)
+macro genM()strBrd0(-strL0*n*nS)
 +strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)// EOM
 ENDIFMACRO
 
@@ -62,7 +115,7 @@ macro defB()strBd0
 strBd(1)
 strBd(2)
 strBd(3)// EOM
-macro genM()strBrd0(-strL*n*nS)
+macro genM()strBrd0(-strL0*n*nS)
 +strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
 +strBrd3(-strL*n*nS)// EOM
 ENDIFMACRO
@@ -73,7 +126,7 @@ strBd(1)
 strBd(2)
 strBd(3)
 strBd(4)// EOM
-macro genM()strBrd0(-strL*n*nS)
+macro genM()strBrd0(-strL0*n*nS)
 +strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
 +strBrd3(-strL*n*nS)+strBrd4(-strL*n*nS)// EOM
 ENDIFMACRO
@@ -85,7 +138,7 @@ strBd(2)
 strBd(3)
 strBd(4)
 strBd(5)// EOM
-macro genM()strBrd0(-strL*n*nS)
+macro genM()strBrd0(-strL0*n*nS)
 +strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
 +strBrd3(-strL*n*nS)+strBrd4(-strL*n*nS)
 +strBrd5(-strL*n*nS)// EOM
