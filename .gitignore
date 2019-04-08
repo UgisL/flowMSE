@@ -20,3 +20,5 @@ README.*
 **/*.msh
 # Ignore some temporary files beggining with "_"
 **/._*
+# Ignore some back-up files created inside the structure
+**/*.bck

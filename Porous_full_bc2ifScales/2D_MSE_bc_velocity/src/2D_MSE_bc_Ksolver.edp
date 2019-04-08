@@ -1,5 +1,5 @@
 // ----------------------------------------------- COPYRIGHT --------------------------------------
-// Copyright 2016
+// Copyright 2016-2019
 // Ugis Lacis, ugis.lacis@gmail.com
 // Shervin Bagheri, shervin.bagheri@mech.kth.se
 // -------------------------------------------- LICENSE LGPLv3 ------------------------------------
@@ -22,26 +22,42 @@
 // This software is meant to be executed using FreeFem++. You should have recieved a copy
 // of it along with Porous_full_bc2ifScales. If not, get it from <http://www.freefem.org/>.
 //
-// It has been tested to produce accurate results using FreeFem++ version 3.37.
+// It has been tested to produce accurate results using FreeFem++ version 4.00.
 //
 // Execute this file by running "FreeFem++ 2D_MSE_bc_Ksolver.edp" in command line (Unix) or
 // open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
 // documentation in <doc/> and documentation of FreeFem++.
 
 load "UMFPACK64"
+include "2D_MSE_bc_proc.idp"
+
+// Reduce output to minimum
+verbosity = 0;
+
+// Number of geometrical entities to include in the computation (not larger than 6)
+macro Nstr()5// EOM
+
+real ymin;
+real ymax = Nstr;
+
+// Definition of the porous structure
+// Need to defined either geomPreset macro (cylinder,laycyl,ellipse) or
+// border macros directly. (note - tip of the top structure must be zero!)
+macro geomPreset()cylinder// EOM
+
+// Solid volume fraction
+real thetas = 0.02;
+
+include "2D_MSE_bc_geom.idp"
+// This provides macros defB to define border and genM for mesh generation, as
+// well as value for ymin coordinate.
 
 // Mesh resolution
 int n=10;
 // Interface refinement
 int nIntf = 4;
-
-// Definition of solid volume fraction
-real thetas = 0.02;
-real cylr   = sqrt(thetas/pi);
-
-// Box size
-real ymin =-4.5-cylr;
-real ymax = 5.0;
+// Structure refinement
+int nS = 6;
 
 // Problem index
 int indk = 1;
@@ -52,14 +68,9 @@ int Nsamp = 60;
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
 real intfShft = 0.1;
-int  curInd   = 5;
 
-// Check that we are above the first cylinder (requirement for geometry defined below),
-// and that there is a space for some triangles between cylinder and interface
+// Check that we are above the defined smooth structure (meshing requirement)
 assert(intfShft>=0.0001);
-// Check that we are defining reasonable volume fraction (so cylinders doesn't touch)
-assert(thetas > 0.0);
-assert(cylr < 0.5 );
 
 
 // First, define and solve the fully periodic interior Darcy problem, just below the interface cell
@@ -68,179 +79,97 @@ border sqr1p(t=ymin-1.0,ymin) {x= 0.5;        y=t;                    label=1; }
 border sqr2p(t=0.5,-0.5)      {x=t;           y=ymin;                 label=2; }
 border sqr3p(t=ymin,ymin-1.0) {x=-0.5;        y=t;                    label=3; }
 border sqr4p(t=-0.5,0.5)      {x=t;           y=ymin-1.0;             label=4; }
-border circp(t=0,2*pi)        {x=cylr*cos(t); y=cylr*sin(t)-cylr-5.0; label=5; }
+strBd(Nstr)
 // Define the mesh for periodic solution
-mesh ThP=buildmesh( sqr1p(n*2)+sqr2p(n*2)+sqr3p(n*2)+sqr4p(n*2)+circp(-cylr*pi*n*20) );
+mesh ThP=buildmesh( sqr1p(n)+sqr2p(nIntf*n)+sqr3p(n)+sqr4p(nIntf*n)+genMi(Nstr) );
 // Define the FE spaces for periodic domain and solve for the field
 fespace UUPhP(ThP,[P2,P2,P1],periodic=[[2,x],[4,x],[1,y],[3,y]]);
-UUPhP [uper,vper,pper], [uu,vv,pp];
-solve stokesK([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
+UUPhP [uper,vper,pper], [uper1,vper1,pper1], [uper2,vper2,pper2], [uu,vv,pp];
+real[int,int] itrK(2,2);
+real[int,int] itfK(2,2);
+real[int] avgDiv(2);
+problem stokesKi([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
     int2d(ThP)( - (-pper + 2.0*dx(uper))*dx(uu) - (dy(uper)+dx(vper))*dy(uu)
                 - (-pper + 2.0*dy(vper))*dy(vv) - (dx(vper)+dy(uper))*dx(vv)
                 + (dx(uper)+dy(vper))*pp - 1.0e-10*pper*pp )
     + int2d(ThP)( (indk==1)*uu+(indk==2)*vv )
     + on(5,uper=0,vper=0);
 
+indk = 1; stokesKi;
+itrK(0,0) = int2d(ThP)(uper);
+itrK(1,0) = int2d(ThP)(vper);
+avgDiv(0) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
+uper1[] = uper[];
+indk = 2; stokesKi;
+itrK(0,1) = int2d(ThP)(uper);
+itrK(1,1) = int2d(ThP)(vper);
+avgDiv(1) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
+uper2[] = uper[];
 
-// Now, solve the interface problem for Darcy term
-// Define geometry, top
-border sqr1t(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
-border sqr2t(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
-border sqr3t(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
-border sqr4t(t=-0.5,0.5)      {x=t;    y=intfShft; label=4; }
-// Define geometry, bottom
-border sqr1b(t=ymin,intfShft)  {x= 0.5; y=t;        label=1; }
-border sqr2b(t=0.5,-0.5)       {x=t;    y=intfShft; label=2; }
-border sqr3b(t=intfShft,ymin)  {x=-0.5; y=t;        label=3; }
-border sqr4b(t=-0.5,0.5)       {x=t;    y=ymin;     label=4; }
-// Solid circles
-border circ1(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr    ; label=5; }
-border circ2(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-1.0; label=5; }
-border circ3(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-2.0; label=5; }
-border circ4(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-3.0; label=5; }
-border circ5(t=0,2*pi)    {x=cylr*cos(t); y=cylr*sin(t)-cylr-4.0; label=5; }
+// Output information about interior computation
+cout << endl;
+cout << " ------------------ Interior K computation done ------------------ " << endl;
+cout << " itrK/l = " << itrK << endl;
+cout << " Average divergence = " << avgDiv << endl;
+cout << " ----------------------------------------------------------------- " << endl;
 
-cout << "R of cylinder: " << cylr << endl; 
+// Define geometry for the interface cell, top
+border sqr1ct(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2ct(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
+border sqr3ct(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
+border sqr4ct(t=-0.5,0.5)      {x=t;    y=intfShft; label=8; } // Interior boundary for jump condition
+// bottom
+border sqr1cb(t=ymin,intfShft)  {x= 0.5; y=t;        label=1; }
+border sqr3cb(t=intfShft,ymin)  {x=-0.5; y=t;        label=3; }
+border sqr4cb(t=-0.5,0.5)       {x=t;    y=ymin;     label=4; }
+// Define interior solid structures
+defB
 
-// Define the upper part of the mesh
-mesh ThT=buildmesh( sqr1t(n*2*(ymax-intfShft))+sqr2t(n*2)+sqr3t(n*2*(ymax-intfShft))+sqr4t(nIntf*n*2) );
-// Define the lower part of the mesh
-mesh ThB=buildmesh( sqr1b(n*2*(intfShft-ymin))+sqr2b(nIntf*n*2)+sqr3b(n*2*(intfShft-ymin))+sqr4b(n*2)
-                   +circ1(-cylr*pi*n*20)+circ2(-cylr*pi*n*20)+circ3(-cylr*pi*n*20)+circ4(-cylr*pi*n*20)+circ5(-cylr*pi*n*20) );
+// Generate mesh
+mesh ThC=buildmesh( sqr1ct(n*(ymax-intfShft))+sqr2ct(n)      +sqr3ct(n*(ymax-intfShft))
+                   +sqr3cb(n*(intfShft-ymin))+sqr4cb(nIntf*n)+sqr1cb(n*(intfShft-ymin))+genM+sqr4ct(nIntf*n) );
+// Mesh for truncation (for some integrals)
+mesh ThCt;
 
-// Define the mesh for Lagrangian multipliers (double the resolution)
-int  nL = 2*n;
-mesh ThL=buildmesh( sqr1t(nL*2*(ymax-intfShft))+sqr2t(nL*2)+sqr3t(nL*2*(ymax-intfShft))+sqr4t(nIntf*nL*2) );
-ThL = emptymesh(ThL);
+// Plot the mesh
+plot(ThP,ThC);
 
-// Display the generated mesh
-plot(ThB,ThT);
-// Display the Lagrangian mesh
-// plot(ThL);
+// Define the FE space
+fespace UUPhC(ThC,[P2,P2,P1],periodic=[[1,y],[3,y]]);
+// Define FE functions for problem solution
+UUPhC [u,v,p], [u1,v1,p1], [u2,v2,p2], [uuc,vvc,ppc];
 
-// Define the corresponding FE spaces
-fespace UUPhT(ThT,[P2,P2,P1],periodic=[[1,y],[3,y]]);
-fespace UUPhB(ThB,[P2,P2,P1],periodic=[[1,y],[3,y]]);
-// Space of Lagrangian multipliers (use combined FE space as well)
-fespace UUPhL(ThL,[P1],      periodic=[[1,y],[3,y]]);
+// Define the problem
+problem stokesKc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
+    int2d(ThC)( - (-p + 2.0*dx(u))*dx(uuc) - (dy(u)+dx(v))*dy(uuc)
+                - (-p + 2.0*dy(v))*dy(vvc) - (dx(v)+dy(u))*dx(vvc)
+                + (dx(u)+dy(v))*ppc  )
+    + int2d(ThC)( (y<=intfShft)*((indk==1)*uuc+(indk==2)*vvc) )
+    + on(5,u=0,v=0) + on(4,u=uper,v=vper);
 
-// Define variational formulations
-// Fluid viscous and pressure part
-varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                            + (dx(u)+dy(v))*pp    );
-varf lapB([u,v,p],[uu,vv,pp]) = int2d(ThB)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                            - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                            + (dx(u)+dy(v))*pp - 1e-10*p*pp   ) + on(5,u=0,v=0) + on(4,u=uper,v=vper); 
+// Solve the permeability problem
+uper[] = uper1[];
+indk = 1; stokesKc;
+real avgVu; volAvg(ymax-1,ymax,50,ThC,u) itfK(0,0) = avgVu;
+real avgVv; volAvg(ymax-1,ymax,50,ThC,v) itfK(1,0) = avgVv;
+avgDiv(0) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
+u1[] = u[];
+uper[] = uper2[];
+indk = 2; stokesKc;
+volAvg(ymax-1,ymax,50,ThC,u) itfK(0,1) = avgVu;
+volAvg(ymax-1,ymax,50,ThC,v) itfK(1,1) = avgVv;
+avgDiv(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
+u2[] = u[];
 
-// Unknown stresses
-varf strT([u,v,p],[uu,vv,pp]) = int1d(ThT,2,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
-                                                ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*vv );
-varf strB([u,v,p],[uu,vv,pp]) = int1d(ThB,2  )( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*uu +
-                                                ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*vv );
+// Output information about interior computation
+cout << endl;
+cout << " ---------------- Interface cell computation done ---------------- " << endl;
+cout << " Investigated interface location yif = " << intfShft << endl;
+cout << " itfK/l = " << itfK << endl;
+cout << " Average divergence = " << avgDiv << endl;
+cout << " ----------------------------------------------------------------- " << endl << endl;
 
-// Adding volume forcing in the bottom domain
-varf frcB([empty],[uu,vv,pp]) = int2d(ThB)( - ((indk==1)*uu + (indk==2)*vv) );
 
-// Interpolation/boundary condition functions (at interface, label 4)
-// Velocity continuity
-varf intpIntfU ([u,v,p],[bb]) = int1d(ThL,4)( u*bb );
-varf intpIntfUn([u,v,p],[bb]) = int1d(ThL,4)(-u*bb );
-varf intpIntfV ([u,v,p],[bb]) = int1d(ThL,4)( v*bb );
-varf intpIntfVn([u,v,p],[bb]) = int1d(ThL,4)(-v*bb );
-// Stress continuity at the interface
-varf intpIntfSu ([u,v,p],[bb]) = int1d(ThL,4)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
-varf intpIntfSun([u,v,p],[bb]) = int1d(ThL,4)(-( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
-varf intpIntfSv ([u,v,p],[bb]) = int1d(ThL,4)( ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
-varf intpIntfSvn([u,v,p],[bb]) = int1d(ThL,4)(-( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
-// Zero stress at the top boundary (label 2)
-varf intpTopZSu ([u,v,p],[bb]) = int1d(ThL,2)( ( (-p+2*dx(u))*N.x + (dy(u)+dx(v))*N.y )*bb );
-varf intpTopZSv ([u,v,p],[bb]) = int1d(ThL,2)( ( (dx(v)+dy(u))*N.x + (-p+2*dy(v))*N.y )*bb );
-// Penalty for unused sides of Lagrangian mesh (labels 1,3 and 2 and 4)
-varf intppenS   ([b],[bb])     = int1d(ThL,1,3)( -1e-10*b*bb );
-varf intppenT   ([b],[bb])     = int1d(ThL,2)  ( -1e-10*b*bb );
-varf intppenB   ([b],[bb])     = int1d(ThL,4)  ( -1e-10*b*bb );
-
-// Construct the linear system
-matrix CoupSYS;
-{
-    // Construct fluid sub-matrices
-    matrix L1 = lapT(UUPhT,UUPhT); matrix L1s = strT(UUPhT,UUPhT);
-    L1=L1+L1s;
-    matrix L2 = lapB(UUPhB,UUPhB); matrix L2s = strB(UUPhB,UUPhB);
-    L2=L2+L2s;
-    // Construct boundary conditions on Lagrange multiplier space
-    matrix B1 = intpIntfU (UUPhT,UUPhL); matrix B1n = intpIntfUn (UUPhB,UUPhL);
-    matrix B2 = intpIntfV (UUPhT,UUPhL); matrix B2n = intpIntfVn (UUPhB,UUPhL);
-    matrix B3 = intpIntfSu(UUPhT,UUPhL); matrix B3n = intpIntfSun(UUPhB,UUPhL);
-    matrix B4 = intpIntfSv(UUPhT,UUPhL); matrix B4n = intpIntfSvn(UUPhB,UUPhL);
-    matrix B5 = intpTopZSu(UUPhT,UUPhL);
-    matrix B6 = intpTopZSv(UUPhT,UUPhL);
-    matrix BPS= intppenS  (UUPhL,UUPhL); matrix BPT = intppenT(UUPhL,UUPhL);
-    matrix BPB= intppenB  (UUPhL,UUPhL);
-    BPT=BPT+BPS;
-    BPB=BPB+BPS;
-
-    // Assemble the main matrix, add transpose matrices for feedback
-    // from Lagrange multipliers
-    CoupSYS = [ [ L1,  0,  B1', B2', B3', B4', B5', B6' ],
-                [ 0,  L2,  B1n',B2n',B3n',B4n',0,   0   ],
-                [ B1, B1n, BPT, 0,   0,   0,   0,   0   ],
-                [ B2, B2n, 0,   BPT, 0,   0,   0,   0   ],
-                [ B3, B3n, 0,   0,   BPT, 0,   0,   0   ],
-                [ B4, B4n, 0,   0,   0,   BPT, 0,   0   ],
-                [ B5, 0,   0,   0,   0,   0,   BPB, 0   ],
-                [ B6, 0,   0,   0,   0,   0,   0,   BPB ] ];
-}
-
-// Construct the right hand side vector
-real[int] RHS(UUPhT.ndof+UUPhB.ndof+6*UUPhL.ndof);
-{
-    RHS(0:UUPhT.ndof+UUPhB.ndof+6*UUPhL.ndof-1) = 0;
-    // Dirichlet boundary conditions
-    RHS(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1)     = lapB(0,UUPhB);
-    // Adding the volume forcing
-    real[int] FrcArr                            = frcB(0,UUPhB);
-    RHS(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1)     = RHS(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1) + FrcArr;
-}
-
-// Choose the direct solver, solve the system
-set(CoupSYS, solver=sparsesolver);
-real[int] SOL = CoupSYS^-1*RHS;
-
-UUPhT [ut,vt,pt];
-UUPhB [ub,vb,pb];
-
-// Extract results
-ut[] = SOL(0:UUPhT.ndof-1);
-vt[] = SOL(0:UUPhT.ndof-1);
-pt[] = SOL(0:UUPhT.ndof-1);
-ub[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
-vb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
-pb[] = SOL(UUPhT.ndof:UUPhT.ndof+UUPhB.ndof-1);
-
-// Do integrals for boundary condition coefficients at the interface with the fluid
-int  Nbox   = 50;
-real dzstep = 1.0/Nbox;
-real[int] smpval(Nbox+1);
-real tmpval = 0;
-// The integral in the interface-normal direciton is carried out using trapezoidal rule
-for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( ut );
-for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
-real K1BL = tmpval;
-tmpval = 0;
-for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(ThT,levelset=(y-ymax+1.0e-6+i*dzstep))( vt );
-for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
-real K2BL = tmpval;
-
-// Output the result to screen
-cout << "yintf = " << intfShft << ", K1"+indk+"BL = " << K1BL << ", K2"+indk+"BL = " << K2BL << endl;
-
-// Save the result in a txt file (yintf, K1k, K2k)
-{
-    ofstream resfile("2D_bound_cond_Ki"+indk+"_intf.txt",append);
-    resfile << intfShft << " " << K1BL << " " << K2BL << endl;
-}
 // Sample the plane average results, adjust number of samples according to vertical height
 Nsamp = Nsamp*(ymax-ymin);
 real[int,int] PlaneUavg(5,Nsamp);
@@ -269,64 +198,64 @@ for (int i=0; i<Nsamp; i++){
 }
 // Save the data to text file
 {
-    ofstream resfile("2D_bound_cond_Ki"+indk+"prof"+curInd+".txt");
+    ofstream resfile("2D_bound_cond_Ki"+indk+"prof.txt");
     resfile << "# interface coord = " << intfShft << endl;
     resfile << "# y, <u>_y, <v>_y, <p>_y, <p>^i_y " << endl;
     for (int i=0; i<Nsamp; i++) resfile << PlaneUavg(0,i) << " " << PlaneUavg(1,i) << " " << PlaneUavg(2,i) << " " << PlaneUavg(3,i) << " " << PlaneUavg(4,i) << endl;
 }
 
-// Define the "jet" colorscheme, BUT - it is intensity incorrect (black & white prints look weird)
-real[int] colorsJET = [
-    6.666666666666666297e-01, 1.000000000000000000e+00, 8.333000000000000407e-01,
-    6.666666666666666297e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    6.388833333333332476e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    6.111166666666666414e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    5.833333333333332593e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    5.555499999999999883e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    5.277833333333332710e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    5.000000000000000000e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    4.666586663466538720e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
-    4.166791660416978571e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
-    3.333333333333333148e-01, 5.000000000000000000e-01, 1.000000000000000000e+00,
-    2.499875006249687726e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
-    2.000080003200127854e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
-    1.666666666666666574e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    1.388833333333333309e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    1.111166666666666553e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    8.333333333333332871e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    5.554999999999999521e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    2.778333333333333002e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    0.000000000000000000e+00, 1.000000000000000000e+00, 1.000000000000000000e+00,
-    0.000000000000000000e+00, 1.000000000000000000e+00, 8.333000000000000407e-01
-    ];
-// Intesity-correct colorscheme
-// Define the "cubehelix" colorscheme, Green-ish (https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubetry.html)
-real[int] colorsCUBE = [
-    0.000000000000000000e+00, 0.000000000000000000e+00, 0.000000000000000000e+00,
-    6.474926253687315336e-01, 7.902097902097902082e-01, 1.429999999999999882e-01,
-    6.219336219336218941e-01, 8.587360594795538926e-01, 2.690000000000000169e-01,
-    5.993217054263565435e-01, 9.197860962566843934e-01, 3.739999999999999991e-01,
-    5.784313725490195512e-01, 9.714285714285714191e-01, 4.550000000000000155e-01,
-    5.589192708333332593e-01, 1.000000000000000000e+00, 5.120000000000000107e-01,
-    5.386029411764705621e-01, 1.000000000000000000e+00, 5.440000000000000391e-01,
-    5.150421179302044905e-01, 1.000000000000000000e+00, 5.540000000000000480e-01,
-    4.888888888888889284e-01, 1.000000000000000000e+00, 5.849999999999999645e-01,
-    4.657464212678936732e-01, 9.878787878787879118e-01, 6.600000000000000311e-01,
-    4.437840515106488692e-01, 9.257221458046767104e-01, 7.269999999999999796e-01,
-    4.223227752639516774e-01, 8.467432950191571273e-01, 7.830000000000000293e-01,
-    3.999999999999999667e-01, 7.539203860072376528e-01, 8.289999999999999591e-01,
-    3.755952380952380931e-01, 6.481481481481482509e-01, 8.639999999999999902e-01,
-    3.477192982456139836e-01, 5.337078651685394082e-01, 8.900000000000000133e-01,
-    3.155186064924782041e-01, 4.631463146314631629e-01, 9.090000000000000302e-01,
-    2.861552028218694588e-01, 4.095341278439869614e-01, 9.230000000000000426e-01,
-    2.591397849462365732e-01, 3.311965811965812412e-01, 9.360000000000000542e-01,
-    2.328767123287670826e-01, 2.305263157894736625e-01, 9.499999999999999556e-01,
-    2.050147492625369328e-01, 1.164948453608247309e-01, 9.699999999999999734e-01,
-    0.000000000000000000e+00, 0.000000000000000000e+00, 1.000000000000000000e+00
-    ];
+// // Define the "jet" colorscheme, BUT - it is intensity incorrect (black & white prints look weird)
+// real[int] colorsJET = [
+//     6.666666666666666297e-01, 1.000000000000000000e+00, 8.333000000000000407e-01,
+//     6.666666666666666297e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     6.388833333333332476e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     6.111166666666666414e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     5.833333333333332593e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     5.555499999999999883e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     5.277833333333332710e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     5.000000000000000000e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     4.666586663466538720e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+//     4.166791660416978571e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+//     3.333333333333333148e-01, 5.000000000000000000e-01, 1.000000000000000000e+00,
+//     2.499875006249687726e-01, 6.667000000000000703e-01, 1.000000000000000000e+00,
+//     2.000080003200127854e-01, 8.333000000000000407e-01, 1.000000000000000000e+00,
+//     1.666666666666666574e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     1.388833333333333309e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     1.111166666666666553e-01, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     8.333333333333332871e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     5.554999999999999521e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     2.778333333333333002e-02, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     0.000000000000000000e+00, 1.000000000000000000e+00, 1.000000000000000000e+00,
+//     0.000000000000000000e+00, 1.000000000000000000e+00, 8.333000000000000407e-01
+//     ];
+// // Intesity-correct colorscheme
+// // Define the "cubehelix" colorscheme, Green-ish (https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubetry.html)
+// real[int] colorsCUBE = [
+//     0.000000000000000000e+00, 0.000000000000000000e+00, 0.000000000000000000e+00,
+//     6.474926253687315336e-01, 7.902097902097902082e-01, 1.429999999999999882e-01,
+//     6.219336219336218941e-01, 8.587360594795538926e-01, 2.690000000000000169e-01,
+//     5.993217054263565435e-01, 9.197860962566843934e-01, 3.739999999999999991e-01,
+//     5.784313725490195512e-01, 9.714285714285714191e-01, 4.550000000000000155e-01,
+//     5.589192708333332593e-01, 1.000000000000000000e+00, 5.120000000000000107e-01,
+//     5.386029411764705621e-01, 1.000000000000000000e+00, 5.440000000000000391e-01,
+//     5.150421179302044905e-01, 1.000000000000000000e+00, 5.540000000000000480e-01,
+//     4.888888888888889284e-01, 1.000000000000000000e+00, 5.849999999999999645e-01,
+//     4.657464212678936732e-01, 9.878787878787879118e-01, 6.600000000000000311e-01,
+//     4.437840515106488692e-01, 9.257221458046767104e-01, 7.269999999999999796e-01,
+//     4.223227752639516774e-01, 8.467432950191571273e-01, 7.830000000000000293e-01,
+//     3.999999999999999667e-01, 7.539203860072376528e-01, 8.289999999999999591e-01,
+//     3.755952380952380931e-01, 6.481481481481482509e-01, 8.639999999999999902e-01,
+//     3.477192982456139836e-01, 5.337078651685394082e-01, 8.900000000000000133e-01,
+//     3.155186064924782041e-01, 4.631463146314631629e-01, 9.090000000000000302e-01,
+//     2.861552028218694588e-01, 4.095341278439869614e-01, 9.230000000000000426e-01,
+//     2.591397849462365732e-01, 3.311965811965812412e-01, 9.360000000000000542e-01,
+//     2.328767123287670826e-01, 2.305263157894736625e-01, 9.499999999999999556e-01,
+//     2.050147492625369328e-01, 1.164948453608247309e-01, 9.699999999999999734e-01,
+//     0.000000000000000000e+00, 0.000000000000000000e+00, 1.000000000000000000e+00
+//     ];
 
-// Plot the results
-plot(ub,ut,nbiso=80,hsv=colorsJET,fill=1,value=1);
-plot(vb,vt,nbiso=80,hsv=colorsJET,fill=1,value=1);
-plot(pb,pt,nbiso=80,hsv=colorsJET,fill=1,value=1,wait=1);
+// // Plot the results
+// plot(uper,ub,ut,nbiso=80,hsv=colorsJET,fill=1,value=1);
+// plot(vper,vb,vt,nbiso=80,hsv=colorsJET,fill=1,value=1);
+// plot(pb,pt,nbiso=80,hsv=colorsJET,fill=1,value=1,wait=1);
 

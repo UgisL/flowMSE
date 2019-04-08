@@ -1,0 +1,102 @@
+// Set of macros for changing length of the interface cell, it expects that
+// the main file defines number of structures macro (Nstr) as well as single
+// structure name macro (strNm), border macro (strB), surface length
+// (strL), mesh resolution (n) and surface refinement (nS)
+//
+// This provides macros defB to define border and genM for mesh generation
+
+// Default number of structures
+IFMACRO(!Nstr)
+macro Nstr()4// EOM
+ENDIFMACRO
+
+// Check if macro for selecting geometry pre-set is set
+// If not, check if border definition is provided directly
+IFMACRO(!geomPreset)
+IFMACRO(!strBd)
+macro geomPreset()cylinder// EOM
+ENDIFMACRO
+ENDIFMACRO
+
+// Defining the geometry presets
+// Isotropic cylinder, requires thetas to be defined in the main file
+IFMACRO(geomPreset,cylinder)
+real cylr   = sqrt(thetas/pi);
+real strL   = 2*pi*cylr;
+assert(thetas > 0.0); assert(cylr < 0.5 );
+macro strBd0()border strBrd0 (t=0,2*pi) {x=cylr*cos(t); y=cylr*sin(t)-cylr;    label=5; } // EOM
+macro strBd(N)border strBrd#N(t=0,2*pi) {x=cylr*cos(t); y=cylr*sin(t)-cylr-#N; label=5; } // EOM
+ymin = -Nstr+0.5-cylr;
+cout << endl << endl;
+cout << " --------------- Defined isotropic cylinder geometry ------------- " << endl;
+cout << " Chose solid volume fraction, thetas = " << thetas << endl;
+cout << " Resulting cylinder radius,   cylr   = " << cylr << endl;
+cout << " ----------------------------------------------------------------- " << endl;
+ENDIFMACRO
+
+
+// Unrolling border macros
+IFMACRO(Nstr,1)
+macro defB()strBd0// EOM
+macro genM()strBrd0(-strL*n*nS)// EOM
+ENDIFMACRO
+
+IFMACRO(Nstr,2)
+macro defB()strBd0
+strBd(1)
+// EOM
+macro genM()strBrd0(-strL*n*nS)
++strBrd1(-strL*n*nS)// EOM
+ENDIFMACRO
+
+IFMACRO(Nstr,3)
+macro defB()strBd0
+strBd(1)
+strBd(2)// EOM
+macro genM()strBrd0(-strL*n*nS)
++strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)// EOM
+ENDIFMACRO
+
+IFMACRO(Nstr,4)
+macro defB()strBd0
+strBd(1)
+strBd(2)
+strBd(3)// EOM
+macro genM()strBrd0(-strL*n*nS)
++strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
++strBrd3(-strL*n*nS)// EOM
+ENDIFMACRO
+
+IFMACRO(Nstr,5)
+macro defB()strBd0
+strBd(1)
+strBd(2)
+strBd(3)
+strBd(4)// EOM
+macro genM()strBrd0(-strL*n*nS)
++strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
++strBrd3(-strL*n*nS)+strBrd4(-strL*n*nS)// EOM
+ENDIFMACRO
+
+IFMACRO(Nstr,6)
+macro defB()strBd0
+strBd(1)
+strBd(2)
+strBd(3)
+strBd(4)
+strBd(5)// EOM
+macro genM()strBrd0(-strL*n*nS)
++strBrd1(-strL*n*nS)+strBrd2(-strL*n*nS)
++strBrd3(-strL*n*nS)+strBrd4(-strL*n*nS)
++strBrd5(-strL*n*nS)// EOM
+ENDIFMACRO
+
+// border mesh macro for the interior problem
+macro genMi(N)strBrd#N(-strL*n*nS)// EOM
+
+// Check if needed macro has been defined
+IFMACRO(!defB)
+cout << "ERROR: The macro 'Nstr' must be set appropriate integer value!" << endl;
+cout << "Remember! No white space before and after the integer."
+exit(1);
+ENDIFMACRO
