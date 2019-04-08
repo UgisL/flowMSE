@@ -46,17 +46,18 @@ real ymax = Nstr;
 // border macros directly. (note - tip of the top structure must be zero!)
 
 // macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
+// real thetas  = 0.02;
 
 // macro geomPreset()laycyl// EOM   // laycyl pre-set expects real "thetas" and "thetas0" (solid vf) to be defined
+// real thetas  = 0.05309292;
+// real thetas0 = 0.19634954;
 
 // ellipse pre-set expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0) and "ang" (turn angle) to be defined
 macro geomPreset()ellipse// EOM
-    
-// Geometry parameters
-real thetas  = 0.02;
-real thetas0 = 0.15;
-real ar      = 2.0;
-real ang     = 0.0/180.0*pi;
+real thetas  = 0.21576872577655;    
+real ar      = 1.85714285937;
+real ang     = 45.0/180.0*pi;
+//real intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013
 
 include "2D_MSE_bc_geom.idp"
 // This provides macros defB to define border and genM for mesh generation, as
@@ -166,8 +167,8 @@ real[int,int] tildeF1(1,2), vecF1(1,2);
 real avgVu; volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,0) = avgVu;
 real avgVv; volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,0) = avgVv;
 // Volume avarage for pressure jump
-real avgVpTop; volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
-real avgVpBot; volAvg(ymax-1,ymax,50,ThC,p,avgVpBot)
+real avgVpTop; volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
+real avgVpBot; volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
 tildeF1(0,0) = avgVpBot - avgVpTop;
 // Check the divergence of the solution
 avgDiv(0) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
@@ -176,8 +177,8 @@ uper[] = uper2[];
 indk = 2; stokesKc; uK2[] = u[];
 volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,1) = avgVu;
 volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,1) = avgVv;
-volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
-volAvg(ymin,ymin+1,50,ThC,p,avgVpBot)
+volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
+volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
 tildeF1(0,1) = avgVpBot - avgVpTop;
 avgDiv(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
 // Transform the resistance vector in velocity space
@@ -194,14 +195,16 @@ problem stokesLc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     + on(4,5,u=0,v=0);
 
 // Solve the slip problem, do the post-processing
-real itfL, tildeF2, vecF2;
+real itfL, itfM, tildeF2, vecF2;
 real[int] chckZero(2);
 stokesLc; uL[] = u[];
 volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfL        = avgVu;
 volAvg(ymax-1,ymax,50,ThC,v,avgVv) chckZero(0) = avgVv;
-volAvg(ymax-1,ymax,50,ThC,p,avgVpTop)
-volAvg(ymin,ymin+1,50,ThC,p,avgVpBot)
+volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
+volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
 tildeF2 = avgVpBot - avgVpTop;
+volAvg(ymin,intfShft,Nstr*50,ThC,u,itfM)
+itfM = itfM/itfL;
 chckZero(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
 vecF2 = tildeF2/itfL;
 
@@ -218,6 +221,7 @@ cout << " Average divergence = " << avgDiv << endl << endl;
 
 cout << " ---------------- Interface slip" << endl;
 cout << " itfL/l = " << itfL << endl;
+cout << " itfM/l = " << itfM << endl;
 cout << " tildeF2/mu = " << tildeF2 << endl;
 cout << " vecF2*l/mu = " << vecF2 << endl;
 cout << " Checks (divergence, itfnormalvel) = " << chckZero << endl;
@@ -231,8 +235,8 @@ linAvgSave(ThC, Nsamp, uL, vL, pL, "2D_bound_cond_Lprof.txt")
 cout << " -------------- Plane average output to file done ---------------- " << endl;
 
 // Plot chosen results (macro and colorscheme defined in the include file)
-// plotfields("perm",1,80,colorsJET)
-// plotfields("perm",2,80,colorsJET)
+plotfields("perm",1,80,colorsJET)
+plotfields("perm",2,80,colorsJET)
 plotfields("slip",1,80,colorsJET)
 
 cout << " ------------------- All computations done ----------------------- " << endl;

@@ -3,7 +3,7 @@
 // trapezoidal rule, as well as outputing plane averaged profiles.
 // We also define color scheme here.
 
-// Volume averaging macro, need avgV#var defined in the main file
+// Volume averaging macro, need outvar defined in the main file
 // (to avoid multiple definitions of the variable.
 macro volAvg(miny,maxy,Ntrp,MSH,var,outvar)
 {
@@ -12,6 +12,18 @@ real dzstep = ((maxy)-(miny)-2.0e-6)/Nbox;
 real[int] smpval(Nbox+1);
 real tmpval = 0;
 for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(MSH,levelset=(y- (miny+1.0e-6+i*dzstep) ))( var );
+for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
+outvar = tmpval;
+}
+// EOM
+macro volAvgI(miny,maxy,Ntrp,MSH,var,outvar)
+{
+int  Nbox   = #Ntrp;
+real dzstep = ((maxy)-(miny)-2.0e-6)/Nbox;
+real[int] smpval(Nbox+1);
+real tmpval = 0;
+for(int i=0; i<Nbox+1; i++) smpval(i) = int1d(MSH,levelset=(y- (miny+1.0e-6+i*dzstep) ))( var )
+                                       /int1d(MSH,levelset=(y- (miny+1.0e-6+i*dzstep) ))( 1.0 );
 for(int i=0; i<Nbox; i++) tmpval = tmpval + 0.5*(smpval(i)+smpval(i+1))*dzstep;
 outvar = tmpval;
 }

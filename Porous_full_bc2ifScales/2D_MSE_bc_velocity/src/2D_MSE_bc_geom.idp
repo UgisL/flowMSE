@@ -71,7 +71,7 @@ macro strBd(N)border strBrd#N(t=0,2*pi) {x=semiA*cos(t)*cos(ang) - semiB*sin(t)*
                                          y=semiA*cos(t)*sin(ang) + semiB*sin(t)*cos(ang)-ySft-#N; label=5; } // EOM
 ymin = -Nstr+0.5-ySft;
 cout << endl << endl;
-cout << " --------------- Defined isotropic cylinder geometry ------------- " << endl;
+cout << " ----------------- Defined tilted ellipse geometry --------------- " << endl;
 cout << " Chosen solid volume fraction, thetas = " << thetas << ", ar = " << ar << "," << endl;
 cout << " tilt angle ang = " << ang << " (rad)" << ", " << ang/pi*180 << " [deg]" << endl;
 cout << " Resulting ellipse semi-axis, semiA = " << semiA << ", semiB = " << semiB << "," << endl;
