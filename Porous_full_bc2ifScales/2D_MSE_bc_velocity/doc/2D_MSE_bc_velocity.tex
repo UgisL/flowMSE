@@ -135,46 +135,57 @@
 
 \section{General information}
 
-This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <DOI:10.1017/jfm.2016.838> (open access).
+This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <DOI:10.1017/jfm.2016.838> (open access) This software is also suitable
+to determine coefficients in TR model (improved accuracy over the original work), which
+is available in as a pre-print <arXiv:1812.09401>.
 
 The contents of this module are listed below.
 %[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
 \begin{lstlisting}[language=tex]
-src/2D_MSE_bc_Ksolver.edp                  - script to solve for K tensor
-src/2D_MSE_bc_Lsolver.edp                  - script to solve for L tensor
+src/2D_MSE_bc_solver.edp                   - script to solve for BC coefficients tensor
 src/2D_MSE_solver.edp                      - script to solve a Cavity problem with
                                               developed boundary conditions
 doc/2D_MSE_bc_velocity.pdf                 - this document
 \end{lstlisting}
 
-In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation.
+Two additional .idp files are provided but not described in detail. In this document we explain the key elements of the software, parameters of the simulation, and implemented variational formulation.
 
 \section{Solver for interface tensors K and L}
 
-\subsection{Structure of the simulation scripts}
+\subsection{Structure of the simulation script}
 
-Each simulation script take following input:
+The simulation script take following input:
 \begin{enumerate}
-    \item geometry of the interface cell (in-line cylinders);
+    \item geometry of the interface cell (through predefined presets or custom definition);
 	\item interface location ($intfShft$);
-    \item extent of the cell ($ymin$, $ymax$);
-    \item solid volume fraction ($thetas$);
-    \item mesh;
-    \item problem indices ($indk$ for permeability and $indk$, $indl$ for receptivity);
+    \item extent of the cell (set by number of structures $Nstr$);
+    \item solid volume fraction ($thetas$) and other structure parameters;
 \end{enumerate}
 
-The geometry and mesh (resolution controlled by parameters $n$ and $nIntf$) currently are generated within the software, but could be generated using some other tool and read in. The geometry generation of interface begins with code shown below.
-\begin{lstlisting}[numbers=left,firstnumber=90]
-// Define geometry, top
-border sqr1t(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
-border sqr2t(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
-border sqr3t(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
-border sqr4t(t=-0.5,0.5)      {x=t;    y=intfShft; label=4; }
+The geometry and mesh (resolution controlled by parameters $n$ -- segments per unit length --, $nIntf$ -- 
+refinement at interface --, and $nS$ -- refinement at solid structures) currently
+are generated within the software, but could be generated using some other tool and read in.
+
+In the code, there are three presets for geometry generation defined, ``cylinder'' (isotropic cylinder
+configuration), ``laycyl'' (layered cylinder configuration) and ``ellipse'' (tilted ellipse configuration).
+The first one corresponds to the original work <DOI:10.1017/jfm.2016.838>, while the second two were
+in addition considered in the improved publication <arXiv:1812.09401>. The switching between the presets
+are implemented using the macro ``geomPreset'' as
+\begin{lstlisting}[numbers=left,firstnumber=48]
+macro geomPreset()cylinder// EOM
+real thetas  = 0.25;
 \end{lstlisting}
+Note that there can be no white space between name defined by the macro and end-of-macro (comment symbols
+``//''). The geometry generation relies on use of macros and IFMACRO statement, introduced in relatively
+recent FreeFEM++ version, 3.51 and above.
 
-Assertion is carried out to ensure that interface is not slicing the upper cylinder (line 59). Geometry defining routines must be modified in order to allow interface locations slicing the solid structure. Additionally, the classical permeability problem of the interior is defined and solved in lines 65--86 for getting appropriate boundary conditions for the interface cell (see main paper).
+Assertion is carried out to ensure that interface is not slicing the upper structure (line 81).
+Additionally, the classical permeability problem of the interior is defined and solved in lines 86--116 for
+getting appropriate boundary conditions for the interface cell (see main paper), the results are saved in
+separate finite element functions.
 
-The result of the simulation script is tensor fields at the full interface cell. The output is organized in text files, one for plane-average at the interface (resulting coefficients for velocity boundary condition), one for plane-average for sample coordinates over the whole domain (for understanding the details of flow near the interface).
+The result of the simulation script is tensor fields at the full interface cell. The plane average result is
+outputted in text files, while resulting boundary condition coefficients are outputted to the console.
 
 \subsection{Variational formulation}
 
@@ -191,40 +202,15 @@ u^{K^{-}}_{i,i} & = 0, & u^{L^{-}}_{i,i} & = 0, \\
 \left. u^{K^{-}}_{i} \right|_{\Gamma_C} & = 0, & \left. u^{L^{-}}_{i} \right|_{\Gamma_C} & = 0.
 \end{align}
 
-Structure of both set of equation systems is exactly the same, the only difference lies in volume forcing and stress boundary condition. Without loosing generality, we proceed by showing how to solve problems for $K$. In order to simplify notation, we skip the $K$ in equations. In order to solve these problems, we define test functions $\hat{u}_i^{\pm}$, $\hat{p}^{\pm}$ and $\hat{\lambda}$ for velocity, pressure and Lagrange multiplier (defined only on the common interface) fields. To arrive with weak formulation, we multiply equations with test function and employ integration by parts for fluid stresses, designated by $\Sigma^{\pm}_{ij} = - p^{\pm} \delta_{ij} + 2 \str{}{ij}{u^{\pm}} $, to obtain
+Structure of both set of equation systems is exactly the same, the only difference lies in volume forcing and stress boundary condition. Without loosing generality, we proceed by showing how to solve problems for $K$. In order to simplify notation, we skip the $K$ in equations. In order to solve these problems, we define test functions $\hat{u}_i^{\pm}$ and $\hat{p}^{\pm}$ and $\hat{\lambda}$ for velocity and pressure To arrive with weak formulation, we multiply equations with test function and employ integration by parts for fluid stresses, designated by $\Sigma^{\pm}_{ij} = - p^{\pm} \delta_{ij} + 2 \str{}{ij}{u^{\pm}} $, to obtain
 \begin{align}
 - \int_{\Omega} \Sigma^{+}_{ij} \hat{u}^{+}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{+}_{ij} n_j \hat{u}^{+}_{i} \,\mathit{dS} & = 0, \\
 \int_{\Omega} u^{{+}}_{i,i} \hat{p}^{+} \,\mathit{d\Omega} & = 0, \\
 - \int_{\Omega} \Sigma^{-}_{ij} \hat{u}^{-}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{-}_{ij} n_j \hat{u}^{-}_{i} \,\mathit{dS} & = -\int_{\Omega} \delta_{ik} \hat{u}^{-}_{i} \,\mathit{d\Omega},  \\
 \int_{\Omega} u^{{-}}_{i,i} \hat{p}^{-} \,\mathit{d\Omega} & = 0,
 \end{align}
-for governing equations, and
-\begin{align}
-\int_{\Gamma_I} u^{+}_{i} \hat{\lambda} \,\mathit{dS} -  \int_{\Gamma_I} u^{-}_{i} \hat{\lambda} \,\mathit{dS} & = 0,  \\
-\int_{\Gamma_I} \Sigma^{+}_{ij} n_j \hat{\lambda} \,\mathit{dS} - \int_{\Gamma_I} \Sigma^{-}_{ij} n_j \hat{\lambda} \,\mathit{dS}  & = 0,
-\end{align}
-for boundary conditions. A scalar field has been selected for Lagrange multiplier space in order to have the ability to operate with boundary conditions on component basis, i.e., put separate boundary conditions for different velocity or stress components. Additionally, we must modify the weak form of the governing equations and add the forcing from Lagrange multipliers to force the required conditions. The governing equations then become
-\begin{align}
-- \int_{\Omega} \Sigma^{+}_{ij} \hat{u}^{+}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{+}_{ij} n_j \hat{u}^{+}_{i} \,\mathit{dS} + \int_{\Gamma_I} m^{+}_{i} \left(\lambda\right) \hat{u}^{+}_i \,\mathit{dS} & = 0, \\
-\int_{\Omega} u^{{+}}_{i,i} \hat{p}^{+} \,\mathit{d\Omega} + \int_{\Gamma_I} d^{+} \left(\lambda\right) \hat{p}^{+} \,\mathit{dS} & = 0, \\
-- \int_{\Omega} \Sigma^{-}_{ij} \hat{u}^{-}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{-}_{ij} n_j \hat{u}^{-}_{i} \,\mathit{dS} + \int_{\Gamma_I} m^{-}_{i} \left(\lambda\right) \hat{u}^{-}_i \,\mathit{dS} & = -\int_{\Omega} \delta_{ik} \hat{u}^{-}_{i} \,\mathit{d\Omega},  \\
-\int_{\Omega} u^{{-}}_{i,i} \hat{p}^{-} \,\mathit{d\Omega} + \int_{\Gamma_I} d^{-} \left(\lambda\right) \hat{p}^{-} \,\mathit{dS} & = 0,
-\end{align}
-where functions $m^{+}_i$, $m^{-}_i$, $d^{+}$ and $d^{-}$ are corresponding transpose functions of boundary conditions on the interface. This weak formulation results in a linear matrix to solve, as shown below.
-\begin{lstlisting}[numbers=left,firstnumber=161]
-    // Assemble the main matrix, add transpose matrices for feedback
-    // from Lagrange multipliers
-    CoupSYS = [ [ L1,  0,  B1', B2', B3', B4', B5', B6' ],
-                [ 0,  L2,  B1n',B2n',B3n',B4n',0,   0   ],
-                [ B1, B1n, BPT, 0,   0,   0,   0,   0   ],
-                [ B2, B2n, 0,   BPT, 0,   0,   0,   0   ],
-                [ B3, B3n, 0,   0,   BPT, 0,   0,   0   ],
-                [ B4, B4n, 0,   0,   0,   BPT, 0,   0   ],
-                [ B5, 0,   0,   0,   0,   0,   BPB, 0   ],
-                [ B6, 0,   0,   0,   0,   0,   0,   BPB ] ];
-\end{lstlisting}
-
-The matrices \texttt{L1} and \texttt{L2} are bilinear forms of fluid stress in upper and lower domains, \texttt{B1}, \texttt{B2}, \texttt{B1n} and \texttt{B2n} are bilinear forms of velocity boundary condition two components,  \texttt{B3}, \texttt{B4}, \texttt{B3n} and \texttt{B4n} are bilinear forms of stress boundary condition two components at the interface, and \texttt{B5} and \texttt{B6} are bilinear forms of stress boundary condition two components at the top of the upper domain. The prime denotes a transpose of matrices and those are added in the system as feedback from Lagrange multipliers. Due to the fact, that FreeFem++ doesn't have the capability to work with surface-only meshes, we have to add penalty for unused parts of Lagrange multiplier space, which are \texttt{BPT} and \texttt{BPB}. In addition, we have through testing noticed that Lagrangian multiplier approach works the best using double the resolution and one order smaller finite element space (in our case \texttt{P1}).
+for governing equations. This weak formulation is implemented using problem statements (lines 153--159 and 189--195). The surface
+forcing for the slip problem is enforced using surface integral on the interior boundary.
 
 \section{Solver for led driven cavity flow over porous medium}
 
@@ -253,59 +239,5 @@ For the final remark, we have observed that
 construction of Lagrange multipliers is different. Before we saw that transpose operation was always sufficient (and required) for accurate solution. However, in this case, one has to explicitly define that forcing from velocity boundary condition acts only on velocities (and not on derivatives of velocity or pore pressure), while pressure boundary condition for pore pressure equation acts only as forcing in the pore pressure equation.
 Otherwise, the weak form and solver is constructed exactly as described in the previous section.
 
-\section{Issue: fluid stress tensor in weak form}
-
-The authors think that it is their responsibility to warn potential users of this software
-that the FreeFem++ might be in some cases sensitive to exact form in which the weak form 
-of the fluid stress tensor is written. It seems that it could be a bug in the software.
-
-To illustrate the issue, we consider fluid stress tensor written in two forms, as shown below.
-\begin{lstlisting}
-// Fluid viscous and pressure part                                                                                                                            
-varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - 2.0*dx(u)*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                                           - 2.0*dy(v)*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                                           +         p*dx(uu)
-                                                           +         p*dy(vv)
-                                                           + (dx(u)+dy(v))*pp    );
-                                                           
-// Fluid viscous and pressure part                                                                                                                            
-varf lapT([u,v,p],[uu,vv,pp]) = int2d(ThT)( - (-p + 2.0*dx(u))*dx(uu) - (dy(u)+dx(v))*dy(uu)
-                                                           - (-p + 2.0*dy(v))*dy(vv) - (dx(v)+dy(u))*dx(vv)
-                                                           + (dx(u)+dy(v))*pp    );
-\end{lstlisting}
-
-Running the solver for $\mathcal{L}_{112}$ coefficient using parameters $\phi = 0.02$ and $y_s = 0.1$ yields results of
-\begin{align}
-\mathcal{L}^{(1)}_{112} & = 0.166932, \\
-\mathcal{L}^{(2)}_{112} & = 0.178310,
-\end{align}
-for the first and second form, respectively.
-%The difference of around $6\%$ is considerable, bearing in mind that exactly the same physical
-%problem has been solved.
-We have observed that this difference decreases, as interface coordinate 
-$y_s$ is increased, or the interface is moved up. 
-We have also observed that only $L$ solver is
-affected by this bug. Results from the $K$ solver are identical using both stress forms.
-This behaviour has been confirmed to exists in FreeFem++ versions $3.46$ and $3.37$. In order to determine, which version is correct, we compare results with literature, paper by Carraro, Thomas,
-et al. ``Pressure jump interface law for the Stokes--Darcy coupling: confirmation by direct
-numerical simulations.'' J. Fluid Mech. 732 (2013): 510-536. Based on results shown in
-Tab.~\ref{tab:chan-slip-comp-cavity}, we have concluded that second stress form yields
-accurate results.
-
-\begin{table}[h!]
-  \begin{center}
- \begin{tabular}{ | c | c |}
- \hline
- Literature & $-C_{1,h}^{bl} = 0.303821942379 \pm 2 \cdot 10^{-12}$ \\
- \hline
- Stress form 1 & $ \mathcal{L}^{(1)}_{112} = 0.297088 $ \\
- \hline
- Stress form 2 & $ \mathcal{L}^{(2)}_{112} = 0.303857 $ \\
- \hline
-  \end{tabular}
-    \caption{Comparison of interface cell results to literature.}
-  \label{tab:chan-slip-comp-cavity}
-  \end{center}
-\end{table}
 
 \end{document}

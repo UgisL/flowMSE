@@ -2,20 +2,27 @@
 This is README file of software repository flowMSE
 
 This software is a script compilation for FreeFem++ <http://www.freefem.org/>
-created within our work on effective/averaged description of porous and
+created within our work on homogenised description of textured, porous and
 poroelastic materials.
 
 --------------------------------------------------------------------------------
  Contents
 --------------------------------------------------------------------------------
 
-This software repository currently has two software packadges, connected with
+This software repository currently has two software packages, connected with
 different scientific contributions:
-Porous_full_bc2ifScales    -- software for porous structures with 2 interface
-                              velocity scales
-                              Associated scientific contributions:
+Porous_full_bc2ifScales    -- software determining coefficients in boundary
+                              conditions for textured and porous structures.
+                              It was originally associated with set of boundary
+                              conditions obtained through multi-scale expansion
+                              as explained in these scientific contributions:
                               <DOI:10.1017/jfm.2016.838> (open-access)
                               <arXiv:1604.02880>
+                              Since April 2019, the routines are being updated
+                              to provide coefficients for semi-rigorous higher
+                              order boundary conditions, as described in
+                              scientific contributions:
+                              <arXiv:1812.09401>
 Poroelastic_fill_strCont   -- software for poroelastic structures with
                               bc2ifScales velocity condition and stress
                               continuity condition

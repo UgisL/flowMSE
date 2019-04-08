@@ -45,19 +45,21 @@ real ymax = Nstr;
 // Need to defined either geomPreset macro (cylinder,laycyl,ellipse) or
 // border macros directly. (note - tip of the top structure must be zero!)
 
-// macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
-// real thetas  = 0.02;
+macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
+real thetas  = 0.25;
+thetas = 0.19634954084936207; // Carraro 2013
+// //real intfShft = 0.25; // Interface location according to Carraro 2013
 
 // macro geomPreset()laycyl// EOM   // laycyl pre-set expects real "thetas" and "thetas0" (solid vf) to be defined
 // real thetas  = 0.05309292;
 // real thetas0 = 0.19634954;
 
-// ellipse pre-set expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0) and "ang" (turn angle) to be defined
-macro geomPreset()ellipse// EOM
-real thetas  = 0.21576872577655;    
-real ar      = 1.85714285937;
-real ang     = 45.0/180.0*pi;
-//real intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013
+// // ellipse pre-set expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0) and "ang" (turn angle) to be defined
+// macro geomPreset()ellipse// EOM
+// real thetas  = 0.21576872577655;    
+// real ar      = 1.85714285937;
+// real ang     = 45.0/180.0*pi;
+// //real intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013
 
 include "2D_MSE_bc_geom.idp"
 // This provides macros defB to define border and genM for mesh generation, as
@@ -76,6 +78,8 @@ int Nsamp = 60;
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
 real intfShft = 0.1;
+// intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013, ellipse
+intfShft = 0.25; // Interface location according to Carraro 2013, cylinder
 
 // Check that we are above the defined smooth structure (meshing requirement)
 assert(intfShft>=0.0001);
@@ -137,8 +141,6 @@ defB
 // Generate mesh
 mesh ThC=buildmesh( sqr1ct(n*(ymax-intfShft))+sqr2ct(n)      +sqr3ct(n*(ymax-intfShft))
                    +sqr3cb(n*(intfShft-ymin))+sqr4cb(nIntf*n)+sqr1cb(n*(intfShft-ymin))+genM+sqr4ct(nIntf*n) );
-// Mesh for truncation (for some integrals)
-mesh ThCt;
 
 // Plot the mesh
 plot(ThP,ThC);
@@ -154,7 +156,7 @@ UUPhC [uK1,vK1,pK1], [uK2,vK2,pK2], [uL,vL,pL];
 problem stokesKc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     int2d(ThC)( - (-p + 2.0*dx(u))*dx(uuc) - (dy(u)+dx(v))*dy(uuc)
                 - (-p + 2.0*dy(v))*dy(vvc) - (dx(v)+dy(u))*dx(vvc)
-                + (dx(u)+dy(v))*ppc  )
+                + (dx(u)+dy(v))*ppc  ) 
     + int2d(ThC)( (y<=intfShft)*((indk==1)*uuc+(indk==2)*vvc) )
     + on(5,u=0,v=0) + on(4,u=uper,v=vper);
 
