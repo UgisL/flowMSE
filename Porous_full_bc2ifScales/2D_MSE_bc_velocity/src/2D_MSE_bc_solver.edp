@@ -46,9 +46,9 @@ real ymax = Nstr;
 // border macros directly. (note - tip of the top structure must be zero!)
 
 macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
-real thetas  = 0.25;
-thetas = 0.19634954084936207; // Carraro 2013
-// //real intfShft = 0.25; // Interface location according to Carraro 2013
+real thetas  = 0.15;
+// thetas = 0.19634954084936207; // Carraro 2013
+//real intfShft = 0.25; // Interface location according to Carraro 2013
 
 // macro geomPreset()laycyl// EOM   // laycyl pre-set expects real "thetas" and "thetas0" (solid vf) to be defined
 // real thetas  = 0.05309292;
@@ -79,7 +79,7 @@ int Nsamp = 60;
 // Positive values - rising the interface
 real intfShft = 0.1;
 // intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013, ellipse
-intfShft = 0.25; // Interface location according to Carraro 2013, cylinder
+// intfShft = 0.25; // Interface location according to Carraro 2013, cylinder
 
 // Check that we are above the defined smooth structure (meshing requirement)
 assert(intfShft>=0.0001);
