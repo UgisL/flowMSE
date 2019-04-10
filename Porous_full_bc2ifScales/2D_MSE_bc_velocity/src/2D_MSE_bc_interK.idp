@@ -1,0 +1,35 @@
+// Include file to solve for interior permeability
+// Define the geometry
+border sqr1p(t=ymin-1.0,ymin) {x= 0.5;        y=t;                    label=1; }
+border sqr2p(t=0.5,-0.5)      {x=t;           y=ymin;                 label=2; }
+border sqr3p(t=ymin,ymin-1.0) {x=-0.5;        y=t;                    label=3; }
+border sqr4p(t=-0.5,0.5)      {x=t;           y=ymin-1.0;             label=4; }
+strBd(Nstr)
+// Define the mesh for periodic solution
+mesh ThP=buildmesh( sqr1p(n)+sqr2p(nI*n)+sqr3p(n)+sqr4p(nI*n)+genMi(Nstr) );
+// Define the FE spaces for periodic domain and solve for the field
+fespace UUPhP(ThP,[P2,P2,P1],periodic=[[2,x],[4,x],[1,y],[3,y]]);
+UUPhP [uper,vper,pper], [uper1,vper1,pper1], [uper2,vper2,pper2], [uu,vv,pp];
+problem stokesKi([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
+    int2d(ThP)( - (-pper + 2.0*dx(uper))*dx(uu) - (dy(uper)+dx(vper))*dy(uu)
+                - (-pper + 2.0*dy(vper))*dy(vv) - (dx(vper)+dy(uper))*dx(vv)
+                + (dx(uper)+dy(vper))*pp - 1.0e-10*pper*pp )
+    + int2d(ThP)( (indk==1)*uu+(indk==2)*vv )
+    + on(5,uper=0,vper=0);
+
+indk = 1; stokesKi;
+itrK(0,0) = int2d(ThP)(uper);
+itrK(1,0) = int2d(ThP)(vper);
+avgDiv(0) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
+uper1[] = uper[];
+indk = 2; stokesKi;
+itrK(0,1) = int2d(ThP)(uper);
+itrK(1,1) = int2d(ThP)(vper);
+uper2[] = uper[];
+avgDiv(1) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
+// Output information about interior computation
+cout << endl;
+cout << " ------------------ Interior K computation done ------------------ " << endl;
+cout << " itrK/l = " << itrK << endl;
+cout << " Average divergence = " << avgDiv << endl;
+cout << " ----------------------------------------------------------------- " << endl;

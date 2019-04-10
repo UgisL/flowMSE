@@ -1,4 +1,8 @@
-// Set of macros for changing length of the interface cell, it expects that
+// Set of macros for convenient geometry manupulation. The switching between
+// porous and textured surface is done through macro "Type".
+//
+// For porous structures, it does changing length of the interface cell.
+// This file expects that
 // the main file defines number of structures macro (Nstr) as well as single
 // structure name macro (strNm), border macro (strB), surface length
 // (strL), mesh resolution (n) and surface refinement (nS)
@@ -6,19 +10,90 @@
 // This provides macros defB to define border and genM for mesh generation
 
 // Default number of structures
+IFMACRO(Type,porous)
 IFMACRO(!Nstr)
 macro Nstr()4// EOM
 ENDIFMACRO
+ENDIFMACRO
 
-// Check if macro for selecting geometry pre-set is set
-// If not, check if border definition is provided directly
-IFMACRO(!geomPreset)
-IFMACRO(!strBd)
-macro geomPreset()cylinder// EOM
+
+// Top geometry macro, if interface is above structures (general)
+IFMACRO(itfFlag,above)
+macro defGeomTop()
+border sqr1ct(t=yi,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2ct(t=0.5,-0.5){x=t;    y=ymax;     label=2; }
+border sqr3ct(t=ymax,yi) {x=-0.5; y=t;        label=3; }
+// EOM
+macro defGeomItf()
+border sqr4ct(t=-0.5,0.5){x=t;    y=yi; label=8; }
+// EOM
+macro genMeshTop()sqr1ct(n*(ymax-yi))+sqr2ct(n)+sqr3ct(n*(ymax-yi))+sqr4ct(nI*n)// EOM
+IFMACRO(Type,porous)
+macro defGeomBot()
+border sqr1cb(t=ymin,yi)  {x= 0.5; y=t;        label=1; }
+border sqr3cb(t=yi,ymin)  {x=-0.5; y=t;        label=3; }
+border sqr4cb(t=-0.5,0.5) {x=t;    y=ymin;     label=4; }
+// EOM
+macro genMesh()
+ThC=buildmesh( genMeshTop
+              +sqr3cb(n*(yi-ymin))+sqr4cb(nI*n)+sqr1cb(n*(yi-ymin))
+              +genM );
+// EOM
 ENDIFMACRO
 ENDIFMACRO
+
 
 // Defining the geometry presets
+
+// Square cavity, requires wdth and dpth to be defined in the main file
+IFMACRO(geomPreset,rctcav)
+assert(wdth < 1-0.1/(n*nS));
+IFMACRO(itfFlag,above)
+macro defGeomBot()
+border sqc1cb(t=0.0,yi)        {x= 0.5;   y=t;    label=1; }
+border sqc3cb(t=yi,0.0)        {x=-0.5;   y=t;    label=3; }
+border sqc4cb(t=-0.5,-wdth/2)  {x= t;     y=0.0;  label=5; }
+border sqc5cb(t=0.0,-dpth)     {x=-wdth/2;y=t;    label=5; }
+border sqc6cb(t=-wdth/2,wdth/2){x= t;     y=-dpth;label=5; }
+border sqc7cb(t=-dpth,0.0)     {x= wdth/2;y=t;    label=5; }
+border sqc8cb(t=wdth/2,0.5)    {x= t;     y=0.0;  label=5; }
+// EOM
+macro genMesh()
+ThC=buildmesh( genMeshTop+sqc1cb(nS*n*yi)+sqc3cb(nS*n*yi)
+              +sqc4cb(nS*n*(1.0-wdth)/2)+sqc5cb(nS*n*dpth)+sqc6cb(nS*n*wdth)
+              +sqc7cb(nS*n*dpth)+sqc8cb(nS*n*(1.0-wdth)/2) );
+// EOM
+ENDIFMACRO
+IFMACRO(itfFlag,zero)
+macro defGeomTop()
+border sqr1ct(t=0.0,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2ct(t=0.5,-0.5) {x=t;    y=ymax;     label=2; }
+border sqr3ct(t=ymax,0.0) {x=-0.5; y=t;        label=3; }
+// EOM
+macro defGeomItf()
+border sqr4ct(t=-wdth/2,wdth/2){x=t;    y=0.0; label=8; }
+// EOM
+macro genMeshTop()sqr1ct(n*(ymax-yi))+sqr2ct(n)+sqr3ct(n*(ymax-yi))+sqr4ct(nI*n*wdth)// EOM
+macro defGeomBot()
+border sqc4cb(t=-0.5,-wdth/2)  {x= t;     y=0.0;  label=5; }
+border sqc5cb(t=0.0,-dpth)     {x=-wdth/2;y=t;    label=5; }
+border sqc6cb(t=-wdth/2,wdth/2){x= t;     y=-dpth;label=5; }
+border sqc7cb(t=-dpth,0.0)     {x= wdth/2;y=t;    label=5; }
+border sqc8cb(t=wdth/2,0.5)    {x= t;     y=0.0;  label=5; }
+// EOM
+macro genMesh()
+ThC=buildmesh( genMeshTop
+              +sqc4cb(nS*n*(1.0-wdth)/2)+sqc5cb(nS*n*dpth)+sqc6cb(nS*n*wdth)
+              +sqc7cb(nS*n*dpth)+sqc8cb(nS*n*(1.0-wdth)/2) );
+// EOM
+ENDIFMACRO
+ymin = -dpth;
+cout << endl << endl;
+cout << " --------------- Defined rectangular cavity geometry ------------- " << endl;
+cout << " Chosen width = " << wdth << " and depth = " << dpth << endl;
+cout << " ----------------------------------------------------------------- " << endl;
+ENDIFMACRO
+
 // Isotropic cylinder, requires thetas to be defined in the main file
 IFMACRO(geomPreset,cylinder)
 real cylr   = sqrt(thetas/pi);
@@ -79,23 +154,23 @@ cout << " and circumference strL = " << strL << endl;
 cout << " ----------------------------------------------------------------- " << endl;
 ENDIFMACRO
 
-
-
-// Check if needed macro has been defined
+// Check if needed macro has been defined for porous set-ups
+IFMACRO(Type,porous)
 IFMACRO(!strBd0)
-cout << "ERROR: The macro 'geomPreset' must be set to allowed value!" << endl;
-cout << "Tip. Check allowed names in 2D_MSE_bc_geom.idp, use correct spelling and no white spaces!"
+cout << "ERROR: The macro 'geomPreset' must be set to allowed value, or border difened by yourself!" << endl;
+cout << "Tip. Check allowed names in 2D_MSE_bc_geom.idp, use correct spelling and no white spaces!" << endl;
 exit(1);
+ENDIFMACRO
 ENDIFMACRO
 
 // Unrolling border macros
 IFMACRO(Nstr,1)
-macro defB()strBd0// EOM
+macro defGeomPor()strBd0// EOM
 macro genM()strBrd0(-strL0*n*nS)// EOM
 ENDIFMACRO
 
 IFMACRO(Nstr,2)
-macro defB()strBd0
+macro defGeomPor()strBd0
 strBd(1)
 // EOM
 macro genM()strBrd0(-strL0*n*nS)
@@ -103,7 +178,7 @@ macro genM()strBrd0(-strL0*n*nS)
 ENDIFMACRO
 
 IFMACRO(Nstr,3)
-macro defB()strBd0
+macro defGeomPor()strBd0
 strBd(1)
 strBd(2)// EOM
 macro genM()strBrd0(-strL0*n*nS)
@@ -111,7 +186,7 @@ macro genM()strBrd0(-strL0*n*nS)
 ENDIFMACRO
 
 IFMACRO(Nstr,4)
-macro defB()strBd0
+macro defGeomPor()strBd0
 strBd(1)
 strBd(2)
 strBd(3)// EOM
@@ -121,7 +196,7 @@ macro genM()strBrd0(-strL0*n*nS)
 ENDIFMACRO
 
 IFMACRO(Nstr,5)
-macro defB()strBd0
+macro defGeomPor()strBd0
 strBd(1)
 strBd(2)
 strBd(3)
@@ -132,7 +207,7 @@ macro genM()strBrd0(-strL0*n*nS)
 ENDIFMACRO
 
 IFMACRO(Nstr,6)
-macro defB()strBd0
+macro defGeomPor()strBd0
 strBd(1)
 strBd(2)
 strBd(3)
@@ -148,8 +223,8 @@ ENDIFMACRO
 macro genMi(N)strBrd#N(-strL*n*nS)// EOM
 
 // Check if needed macro has been defined
-IFMACRO(!defB)
+IFMACRO(!defGeomPor)
 cout << "ERROR: The macro 'Nstr' must be set appropriate integer value!" << endl;
-cout << "Remember! No white space before and after the integer."
+cout << "Remember! No white space before and after the integer." << endl;
 exit(1);
 ENDIFMACRO

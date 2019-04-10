@@ -24,7 +24,7 @@
 //
 // It has been tested to produce accurate results using FreeFem++ version 4.00.
 //
-// Execute this file by running "FreeFem++ 2D_MSE_bc_Ksolver.edp" in command line (Unix) or
+// Execute this file by running "FreeFem++ 2D_MSE_bc_solver.edp" in command line (Unix) or
 // open it by graphical FreeFem++ dialogue (Windows).  For more detailed description, consult
 // documentation in <doc/> and documentation of FreeFem++.
 
@@ -35,20 +35,40 @@ include "2D_MSE_bc_proc.idp"
 // Reduce output to minimum
 verbosity = 0;
 
+// Mesh resolution (n = 1/ds), interface refinement (nI), structure refinement (nS)
+int n = 10, nI = 4, nS = 6;
+
+// Switch between "porous" or "textured" surface
+macro Type()textured// EOM
+
 // Number of geometrical entities to include in the computation (not larger than 6)
 macro Nstr()5// EOM
-
+    
+// Domain size parameters
 real ymin;
 real ymax = Nstr;
+// Define location of the interface (0 = tip of the upper structure)
+// Positive values - rising the interface
+real yi = 0.0;
+macro itfFlag()zero// EOF // Interface flag, "above" or "zero"
 
+// Check that we have reasonable interface locations (producing not too skewed meshes)
+IFMACRO(itfFlag,above) assert(yi>=0.01/(n*nI)); ENDIFMACRO
+IFMACRO(itfFlag,zero)  assert(yi==0.0); ENDIFMACRO
+    
 // Definition of the porous structure
 // Need to defined either geomPreset macro (cylinder,laycyl,ellipse) or
 // border macros directly. (note - tip of the top structure must be zero!)
 
-macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
-real thetas  = 0.15;
+macro geomPreset()rctcav// EOM
+real wdth = 0.5;
+real dpth = 0.5;
+
+
+// macro geomPreset()cylinder// EOM // cylinder pre-set expects real "thetas" (solid vf) to be defined
+// real thetas  = 0.15;
 // thetas = 0.19634954084936207; // Carraro 2013
-//real intfShft = 0.25; // Interface location according to Carraro 2013
+// yi = 0.25; // Interface location according to Carraro 2013
 
 // macro geomPreset()laycyl// EOM   // laycyl pre-set expects real "thetas" and "thetas0" (solid vf) to be defined
 // real thetas  = 0.05309292;
@@ -59,91 +79,47 @@ real thetas  = 0.15;
 // real thetas  = 0.21576872577655;    
 // real ar      = 1.85714285937;
 // real ang     = 45.0/180.0*pi;
-// //real intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013
+// yi = 0.21317839280450163; // Interface location according to Carraro 2013
 
 include "2D_MSE_bc_geom.idp"
-// This provides macros defB to define border and genM for mesh generation, as
+// This provides macros defGeom* to define geometry and genM for mesh generation, as
 // well as value for ymin coordinate.
-
-// Mesh resolution
-int n=10;
-// Interface refinement
-int nIntf = 4;
-// Structure refinement
-int nS = 6;
 
 // Sampling rate of vertical distance unit length
 int Nsamp = 60;
 
-// Define location of the interface (0 = tip of the upper structure)
-// Positive values - rising the interface
-real intfShft = 0.1;
-// intfShft = 0.5-0.2868216071954984; // Interface location according to Carraro 2013, ellipse
-// intfShft = 0.25; // Interface location according to Carraro 2013, cylinder
-
-// Check that we are above the defined smooth structure (meshing requirement)
-assert(intfShft>=0.0001);
-
 // Problem index
 int indk;
 
-// First, define and solve the fully periodic interior Darcy problem, just below the interface cell
-// Define the geometry
-border sqr1p(t=ymin-1.0,ymin) {x= 0.5;        y=t;                    label=1; }
-border sqr2p(t=0.5,-0.5)      {x=t;           y=ymin;                 label=2; }
-border sqr3p(t=ymin,ymin-1.0) {x=-0.5;        y=t;                    label=3; }
-border sqr4p(t=-0.5,0.5)      {x=t;           y=ymin-1.0;             label=4; }
-strBd(Nstr)
-// Define the mesh for periodic solution
-mesh ThP=buildmesh( sqr1p(n)+sqr2p(nIntf*n)+sqr3p(n)+sqr4p(nIntf*n)+genMi(Nstr) );
-// Define the FE spaces for periodic domain and solve for the field
-fespace UUPhP(ThP,[P2,P2,P1],periodic=[[2,x],[4,x],[1,y],[3,y]]);
-UUPhP [uper,vper,pper], [uper1,vper1,pper1], [uper2,vper2,pper2], [uu,vv,pp];
-problem stokesKi([uper,vper,pper],[uu,vv,pp],solver=sparsesolver) =
-    int2d(ThP)( - (-pper + 2.0*dx(uper))*dx(uu) - (dy(uper)+dx(vper))*dy(uu)
-                - (-pper + 2.0*dy(vper))*dy(vv) - (dx(vper)+dy(uper))*dx(vv)
-                + (dx(uper)+dy(vper))*pp - 1.0e-10*pper*pp )
-    + int2d(ThP)( (indk==1)*uu+(indk==2)*vv )
-    + on(5,uper=0,vper=0);
-
-real[int,int] itrK(2,2);
+// If solving for porous coefficients, must first solve interior problem
+// Provides mesh ThP, fefunctions uper, uper1, uper2 for interior solution.
 real[int] avgDiv(2);
-indk = 1; stokesKi;
-itrK(0,0) = int2d(ThP)(uper);
-itrK(1,0) = int2d(ThP)(vper);
-avgDiv(0) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
-uper1[] = uper[];
-indk = 2; stokesKi;
-itrK(0,1) = int2d(ThP)(uper);
-itrK(1,1) = int2d(ThP)(vper);
-avgDiv(1) = int2d(ThP)(dx(uper)+dy(vper))/int2d(ThP)(1.0);
-uper2[] = uper[];
+IFMACRO(Type,porous)
+real[int,int] itrK(2,2);
+include "2D_MSE_bc_interK.idp"
+ENDIFMACRO
 
-// Output information about interior computation
-cout << endl;
-cout << " ------------------ Interior K computation done ------------------ " << endl;
-cout << " itrK/l = " << itrK << endl;
-cout << " Average divergence = " << avgDiv << endl;
-cout << " ----------------------------------------------------------------- " << endl;
+// Define the geometry for the interface cell
+// labels: 1 - right, 2 - top, 3 - left, 4 - bottom, 5 - solid structure 8 - interior
+// Interior boundary - for jump conditions on surface
+defGeomTop
+defGeomItf
+defGeomBot
+IFMACRO(Type,porous)
+defGeomPor
+ENDIFMACRO
 
-// Define geometry for the interface cell, top
-border sqr1ct(t=intfShft,ymax) {x= 0.5; y=t;        label=1; }
-border sqr2ct(t=0.5,-0.5)      {x=t;    y=ymax;     label=2; }
-border sqr3ct(t=ymax,intfShft) {x=-0.5; y=t;        label=3; }
-border sqr4ct(t=-0.5,0.5)      {x=t;    y=intfShft; label=8; } // Interior boundary for jump condition
-// bottom
-border sqr1cb(t=ymin,intfShft)  {x= 0.5; y=t;        label=1; }
-border sqr3cb(t=intfShft,ymin)  {x=-0.5; y=t;        label=3; }
-border sqr4cb(t=-0.5,0.5)       {x=t;    y=ymin;     label=4; }
-// Define interior solid structures
-defB
-
-// Generate mesh
-mesh ThC=buildmesh( sqr1ct(n*(ymax-intfShft))+sqr2ct(n)      +sqr3ct(n*(ymax-intfShft))
-                   +sqr3cb(n*(intfShft-ymin))+sqr4cb(nIntf*n)+sqr1cb(n*(intfShft-ymin))+genM+sqr4ct(nIntf*n) );
+// Generate the mesh for interface cell, ThC
+mesh ThC;
+genMesh
 
 // Plot the mesh
+IFMACRO(Type,porous)
 plot(ThP,ThC);
+ENDIFMACRO
+IFMACRO(Type,textured)
+plot(ThC);
+ENDIFMACRO
 
 // Define the FE space
 fespace UUPhC(ThC,[P2,P2,P1],periodic=[[1,y],[3,y]]);
@@ -157,36 +133,61 @@ problem stokesKc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     int2d(ThC)( - (-p + 2.0*dx(u))*dx(uuc) - (dy(u)+dx(v))*dy(uuc)
                 - (-p + 2.0*dy(v))*dy(vvc) - (dx(v)+dy(u))*dx(vvc)
                 + (dx(u)+dy(v))*ppc  ) 
-    + int2d(ThC)( (y<=intfShft)*((indk==1)*uuc+(indk==2)*vvc) )
+    + int2d(ThC)( (y<=yi)*((indk==1)*uuc+(indk==2)*vvc) )
+IFMACRO(Type,porous)
     + on(5,u=0,v=0) + on(4,u=uper,v=vper);
+ENDIFMACRO
+IFMACRO(Type,textured)
+    + on(5,u=0,v=0);
+ENDIFMACRO
+
 
 // Solve the permeability problem, compute effective parameters
+IFMACRO(Type,porous)
 uper[] = uper1[];
+ENDIFMACRO
 indk = 1; stokesKc; uK1[] = u[];
 real[int,int] itfK(2,2);
 real[int,int] tildeF1(1,2), vecF1(1,2);
-// Volume average for interiour permeability
-real avgVu; volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,0) = avgVu;
-real avgVv; volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,0) = avgVv;
+// Volume average for interface permeability
+real avgVu; volAvg(ymax-1,ymax,Nsamp,ThC,u,avgVu) itfK(0,0) = avgVu;
+real avgVv; volAvg(ymax-1,ymax,Nsamp,ThC,v,avgVv) itfK(1,0) = avgVv;
 // Volume avarage for pressure jump
-real avgVpTop; volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
-real avgVpBot; volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
+real avgVpTop; volAvgI(ymax-1,ymax,Nsamp,ThC,p,avgVpTop)
+IFMACRO(Type,porous)
+real avgVpBot; volAvgI(ymin,ymin+1,Nsamp,ThC,p,avgVpBot)
+ENDIFMACRO
+IFMACRO(Type,textured)
+real avgVpBot; volAvgI(ymin,yi,Nsamp*(yi-ymin),ThC,p,avgVpBot)
+ENDIFMACRO
 tildeF1(0,0) = avgVpBot - avgVpTop;
 // Check the divergence of the solution
 avgDiv(0) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
 // Repeate for the second forcing direction
+IFMACRO(Type,porous)
 uper[] = uper2[];
+ENDIFMACRO
 indk = 2; stokesKc; uK2[] = u[];
-volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfK(0,1) = avgVu;
-volAvg(ymax-1,ymax,50,ThC,v,avgVv) itfK(1,1) = avgVv;
-volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
-volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
+volAvg(ymax-1,ymax,Nsamp,ThC,u,avgVu) itfK(0,1) = avgVu;
+volAvg(ymax-1,ymax,Nsamp,ThC,v,avgVv) itfK(1,1) = avgVv;
+volAvgI(ymax-1,ymax,Nsamp,ThC,p,avgVpTop)
+IFMACRO(Type,porous)
+volAvgI(ymin,ymin+1,Nsamp,ThC,p,avgVpBot)
+ENDIFMACRO
+IFMACRO(Type,textured)
+volAvgI(ymin,yi,Nsamp*(yi-ymin),ThC,p,avgVpBot)
+ENDIFMACRO
 tildeF1(0,1) = avgVpBot - avgVpTop;
 avgDiv(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
 // Transform the resistance vector in velocity space
+IFMACRO(Type,porous)
 real[int,int] invK = itrK^-1;
 vecF1 = tildeF1*invK;
 for(int i=0;i<2;i++) vecF1(0,i) = -vecF1(0,i); // Adding negative sign
+ENDIFMACRO
+IFMACRO(Type,textured)
+vecF1 = 0; vecF1(0,0) = tildeF1(0,0)/itfK(0,0);
+ENDIFMACRO
 
 // Define the problem for the slip
 problem stokesLc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
@@ -200,12 +201,17 @@ problem stokesLc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
 real itfL, itfM, tildeF2, vecF2;
 real[int] chckZero(2);
 stokesLc; uL[] = u[];
-volAvg(ymax-1,ymax,50,ThC,u,avgVu) itfL        = avgVu;
-volAvg(ymax-1,ymax,50,ThC,v,avgVv) chckZero(0) = avgVv;
-volAvgI(ymax-1,ymax,50,ThC,p,avgVpTop)
-volAvgI(ymin,ymin+1,50,ThC,p,avgVpBot)
+volAvg(ymax-1,ymax,Nsamp,ThC,u,avgVu) itfL        = avgVu;
+volAvg(ymax-1,ymax,Nsamp,ThC,v,avgVv) chckZero(0) = avgVv;
+volAvgI(ymax-1,ymax,Nsamp,ThC,p,avgVpTop)
+IFMACRO(Type,porous)
+volAvgI(ymin,ymin+1,Nsamp,ThC,p,avgVpBot)
+ENDIFMACRO
+IFMACRO(Type,textured)
+volAvgI(ymin,yi,Nsamp*(yi-ymin),ThC,p,avgVpBot)
+ENDIFMACRO
 tildeF2 = avgVpBot - avgVpTop;
-volAvg(ymin,intfShft,Nstr*50,ThC,u,itfM)
+volAvg(ymin,yi,Nsamp*(yi-ymin),ThC,u,itfM)
 itfM = itfM/itfL;
 chckZero(1) = int2d(ThC)(dx(u)+dy(v))/int2d(ThC)(1.0);
 vecF2 = tildeF2/itfL;
@@ -213,7 +219,7 @@ vecF2 = tildeF2/itfL;
 // Output information about interior computation
 cout << endl;
 cout << " ---------------- Interface cell computation done ---------------- " << endl;
-cout << " Investigated interface location yif = " << intfShft << endl << endl;
+cout << " Investigated interface location yif = " << yi << endl << endl;
 
 cout << " ---------------- Interface permeability" << endl;
 cout << " itfK/l^2 = " << itfK << endl;
@@ -223,7 +229,7 @@ cout << " Average divergence = " << avgDiv << endl << endl;
 
 cout << " ---------------- Interface slip" << endl;
 cout << " itfL/l = " << itfL << endl;
-cout << " itfM/l = " << itfM << endl;
+cout << " itfM/l = " << itfM << " (tldM/l^2 = " << itfM*itfL << ")"<< endl;
 cout << " tildeF2/mu = " << tildeF2 << endl;
 cout << " vecF2*l/mu = " << vecF2 << endl;
 cout << " Checks (divergence, itfnormalvel) = " << chckZero << endl;
