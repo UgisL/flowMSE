@@ -55,4 +55,9 @@ macro geomPreset()rctcav// EOM
 real wdth = 0.5;
 real dpth = 0.5;
 
+// Triangular cavity pre-set (sharp-tip), expects real "dpth" (depth of the cavity). Width is always one.
+macro Type()textured// EOM
+macro geomPreset()tricav// EOM
+real dpth = 0.5*sqrt(2); // regular triangles
 
+// -----------------------------------------------------------------------------------------------------------

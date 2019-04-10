@@ -44,7 +44,8 @@ int n = 10, nI = 4, nS = 6;
 //    porous:   cylinder, laycyl, ellipse
 //    textured: rctcav, tricav
 macro Type()textured// EOM
-macro geomPreset()tricav// EOM
+macro geomPreset()rctcav// EOM
+real wdth = 0.5;
 real dpth = 0.5;
 
 // Number of geometrical entities to include in the computation (not larger than 6)
@@ -55,8 +56,8 @@ real ymin;
 real ymax = Nstr;
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
-real yi = 0.1;
-macro itfFlag()above// EOF // Interface flag, "above" or "zero"
+real yi = 0.0;
+macro itfFlag()zero// EOF // Interface flag, "above" or "zero"
 
 // Check that we have reasonable interface locations (producing not too skewed meshes)
 IFMACRO(itfFlag,above) assert(yi>=0.01/(n*nI)); ENDIFMACRO
@@ -200,9 +201,11 @@ cout << " ----------------------------------------------------------------- " <<
 
 // Output results to files
 {
+    IFMACRO(Type,porous)
     ofstream os1("2D_MSE_bc_itrK.txt");
     os1 << itrK(0,0) << " " << itrK(0,1) << endl;
     os1 << itrK(1,0) << " " << itrK(1,1) << endl;
+    ENDIFMACRO
     ofstream os2("2D_MSE_bc_itfK.txt");
     os2 << itfK(0,0) << " " << itfK(0,1) << endl;
     os2 << itfK(1,0) << " " << itfK(1,1) << endl;
