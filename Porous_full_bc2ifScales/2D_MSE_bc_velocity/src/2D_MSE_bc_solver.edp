@@ -42,11 +42,9 @@ int n = 10, nI = 4, nS = 6;
 // check examples_geomDef.edp for examples
 // Currently implemented presets:
 //    porous:   cylinder, laycyl, ellipse
-//    textured: rctcav
-macro Type()porous// EOM
-macro geomPreset()cylinder// EOM
-real thetas = 0.15;
-real wdth = 0.5;
+//    textured: rctcav, tricav
+macro Type()textured// EOM
+macro geomPreset()tricav// EOM
 real dpth = 0.5;
 
 // Number of geometrical entities to include in the computation (not larger than 6)

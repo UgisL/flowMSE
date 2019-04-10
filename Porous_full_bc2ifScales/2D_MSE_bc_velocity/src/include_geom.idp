@@ -75,6 +75,50 @@ ENDIFMACRO
 
 // Defining the geometry presets
 
+// Triangle cavity, requires dpth to be defined in the main file
+IFMACRO(geomPreset,tricav)
+IFMACRO(itfFlag,above)
+macro defGeomBot()
+border sqc1cb(t=0.0,yi)  {x= 0.5;      y=t;           label=1; }
+border sqc3cb(t=yi,0.0)  {x=-0.5;      y=t;           label=3; }
+border sqc4cb(t=0.0,1.0) {x=-0.5+t/2.0;y=-t*dpth;     label=5; }
+border sqc5cb(t=0.0,1.0) {x=t/2.0;     y=-dpth+t*dpth;label=5; }
+// EOM
+macro genMesh()
+ThC=buildmesh( genMeshTop+sqc1cb(nS*n*yi)+sqc3cb(nS*n*yi)
+              +sqc4cb(nS*n*sqrt(dpth+0.25))+sqc5cb(nS*n*sqrt(dpth+0.25)) );
+// EOM
+ENDIFMACRO
+IFMACRO(itfFlag,zero)
+macro defGeomTop()
+border sqr1ct(t=0.0,ymax) {x= 0.5; y=t;        label=1; }
+border sqr2ct(t=0.5,-0.5) {x=t;    y=ymax;     label=2; }
+border sqr3ct(t=ymax,0.0) {x=-0.5; y=t;        label=3; }
+// EOM
+macro defGeomItf()
+border sqr4ct(t=-wdth/2,wdth/2){x=t;    y=0.0; label=8; }
+// EOM
+macro genMeshTop()sqr1ct(n*(ymax-yi))+sqr2ct(n)+sqr3ct(n*(ymax-yi))+sqr4ct(nI*n*wdth)// EOM
+macro defGeomBot()
+border sqc4cb(t=-0.5,-wdth/2)  {x= t;     y=0.0;  label=5; }
+border sqc5cb(t=0.0,-dpth)     {x=-wdth/2;y=t;    label=5; }
+border sqc6cb(t=-wdth/2,wdth/2){x= t;     y=-dpth;label=5; }
+border sqc7cb(t=-dpth,0.0)     {x= wdth/2;y=t;    label=5; }
+border sqc8cb(t=wdth/2,0.5)    {x= t;     y=0.0;  label=5; }
+// EOM
+macro genMesh()
+ThC=buildmesh( genMeshTop
+              +sqc4cb(nS*n*(1.0-wdth)/2)+sqc5cb(nS*n*dpth)+sqc6cb(nS*n*wdth)
+              +sqc7cb(nS*n*dpth)+sqc8cb(nS*n*(1.0-wdth)/2) );
+// EOM
+ENDIFMACRO
+ymin = -dpth;
+cout << endl << endl;
+cout << " --------------- Defined triangular cavity geometry ------------- " << endl;
+cout << " Chosen depth = " << dpth << endl;
+cout << " ----------------------------------------------------------------- " << endl;
+ENDIFMACRO
+
 // Square cavity, requires wdth and dpth to be defined in the main file
 IFMACRO(geomPreset,rctcav)
 assert(wdth < 1-0.1/(n*nS));
