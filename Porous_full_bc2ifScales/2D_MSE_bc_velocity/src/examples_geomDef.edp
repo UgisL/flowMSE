@@ -1,0 +1,58 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2019
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Porous_full_bc2ifScales.
+//
+// Porous_full_bc2ifScales is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Porous_full_bc2ifScales is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Porous_full_bc2ifScales. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
+// This is a collection of example geometry definitions, using pre-sets
+
+// Porous geometries -----------------------------------------------------------------------------------------
+// Isotropic cylinder pre-set, expects real "thetas" (solid vf) to be defined
+macro Type()porous// EOM
+macro geomPreset()cylinder// EOM 
+real thetas  = 0.15;
+thetas = 0.19634954084936207; // Carraro 2013
+yi = 0.25; // Interface location according to Carraro 2013
+
+// Layered isotropic cylinder pre-set, expects reals "thetas" and "thetas0" (solid vf at
+// interior and interface) to be defined
+macro Type()porous// EOM
+macro geomPreset()laycyl// EOM
+real thetas  = 0.05309292;
+real thetas0 = 0.19634954;
+
+// Tilted ellipse pre-set, expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0)
+// and "ang" (turn angle) to be defined
+macro Type()porous// EOM
+macro geomPreset()ellipse// EOM
+real thetas  = 0.21576872577655; // Svf according to Carraro 2013
+real ar      = 1.85714285937;    // Aspect ratio according to Carraro 2013
+real ang     = 45.0/180.0*pi;
+yi = 0.21317839280450163; // Interface location according to Carraro 2013
+
+// -----------------------------------------------------------------------------------------------------------
+
+
+// Texture geometries ----------------------------------------------------------------------------------------
+// Rectangular cavity pre-set, expects reals "wdth" (width of the cavity) and "dpth" (depth of thecavity)
+// to be defined.
+macro Type()textured// EOM
+macro geomPreset()rctcav// EOM
+real wdth = 0.5;
+real dpth = 0.5;
+
+

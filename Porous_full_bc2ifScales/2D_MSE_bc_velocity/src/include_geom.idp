@@ -1,3 +1,23 @@
+// ----------------------------------------------- COPYRIGHT --------------------------------------
+// Copyright 2016-2019
+// Ugis Lacis, ugis.lacis@gmail.com
+// Shervin Bagheri, shervin.bagheri@mech.kth.se
+// -------------------------------------------- LICENSE LGPLv3 ------------------------------------
+// This file is part of Porous_full_bc2ifScales.
+//
+// Porous_full_bc2ifScales is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Porous_full_bc2ifScales is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Porous_full_bc2ifScales. If not, see <http://www.gnu.org/licenses/>.
+// ---------------------------------------------- DESCRIPTION -------------------------------------
 // Set of macros for convenient geometry manupulation. The switching between
 // porous and textured surface is done through macro "Type".
 //
@@ -8,6 +28,16 @@
 // (strL), mesh resolution (n) and surface refinement (nS)
 //
 // This provides macros defB to define border and genM for mesh generation
+
+// List of dummy macro generations, to output needed error message for unsupported configurations
+IFMACRO(Type,porous) IFMACRO(itfFlag,zero)
+cout << "Error: zero interface location not supported for porous surfaces (assumed smooth)!" << endl;
+macro defGeomTop()//
+macro defGeomItf()//
+macro defGeomBot()//
+macro genMesh()//
+exit(1);
+ENDIFMACRO ENDIFMACRO
 
 // Default number of structures
 IFMACRO(Type,porous)
