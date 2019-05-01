@@ -23,6 +23,22 @@
 // trapezoidal rule, as well as outputing plane averaged profiles.
 // We also define color scheme here.
 
+// Line probe macro
+macro lineProbeSave(x1,y1,x2,y2,Nsmp,MSH,var,fname)
+{
+ofstream resfile(fname);
+resfile << "# Line probe from (" << x1 << "," << y1 << ") to (" << x2 << "," << y2 << ")" << endl;
+resfile << "# s, x, y, var" << endl;
+real stot = sqrt((x2-x1)^2+(y2-y1)^2);
+int Ntot = stot*Nsmp;
+real scur = 0, xcur, ycur, ds = stot/(Ntot-1), delx = (x2-x1)/(Ntot-1), dely = (y2-y1)/(Ntot-1);
+for (int i=0; i<Ntot; i++)
+{
+    scur = i*ds; xcur = x1 + i*delx; ycur = y1 + i*dely;
+    resfile << scur << " " << xcur << " " << ycur << " " << var(xcur,ycur) << endl;
+}
+}// EOM
+
 // Volume averaging macro, need outvar defined in the main file
 // (to avoid multiple definitions of the variable.
 macro volAvg(miny,maxy,Ntrp,MSH,var,outvar)
