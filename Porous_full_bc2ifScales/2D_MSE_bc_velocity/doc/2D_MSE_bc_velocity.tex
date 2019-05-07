@@ -135,9 +135,13 @@
 
 \section{General information}
 
-This software is a script compilation for FreeFem++ to solve interface cell problems and arrive with coefficients in boundary condition (BC) between porous medium and free fluid. This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for porous case. If you find this software useful, please cite the corresponding publication <DOI:10.1017/jfm.2016.838> (open access) This software is also suitable
-to determine coefficients in TR model (improved accuracy over the original work), which
-is available in as a pre-print <arXiv:1812.09401>.
+This software is a script compilation for FreeFem++ to solve interface cell problems and arrive
+with coefficients in boundary condition (BC) between porous or textured medium and free fluid.
+This module gives the possibility to compute the coefficients for BC in two-dimensions (2D) for
+porous case. If you find this software useful, please cite the corresponding
+publication <DOI:10.1017/jfm.2016.838> (open access) This software is also
+suitable to determine coefficients in TR model (improved accuracy over the original work), which
+is available as a pre-print <arXiv:1812.09401>.
 
 The contents of this module are listed below.
 %[backgroundcolor=\color{black},stringstyle=\color{green},keywordstyle=\color{green}]
@@ -156,37 +160,61 @@ Two additional .idp files are provided but not described in detail. In this docu
 
 The simulation script take following input:
 \begin{enumerate}
-    \item geometry of the interface cell (through predefined presets or custom definition);
-	\item interface location ($intfShft$);
+    \item geometry of the interface cell (through predefined pre-sets or custom definition);
+	\item interface location ($y_i$);
     \item extent of the cell (set by number of structures $Nstr$);
     \item solid volume fraction ($thetas$) and other structure parameters;
 \end{enumerate}
 
-The geometry and mesh (resolution controlled by parameters $n$ -- segments per unit length --, $nIntf$ -- 
-refinement at interface --, and $nS$ -- refinement at solid structures) currently
-are generated within the software, but could be generated using some other tool and read in.
+Currently the geometry is generated within the FreeFem++. The mesh resolution is
+controlled by parameters $n$ -- segments per unit length --, $nIntf$ -- 
+refinement at interface -- and $nS$ -- refinement at solid structures.
 
-In the code, there are three presets for geometry generation defined, ``cylinder'' (isotropic cylinder
+Currently, there are two pre-sets defined for the textured surfaces and three pre-sets
+defined for porous surfaces. To switch between textured and porous surfaces, one has to
+modify the macro
+\begin{lstlisting}[numbers=left,firstnumber=46]
+macro Type()textured// EOM                                                                    
+\end{lstlisting}
+which can take values ``textured'' or ``porous''.
+Two textured pre-sets available are ``tricav'' and ``rctcav'', which have been
+tested in  <arXiv:1812.09401>. The porous pre-sets are
+``cylinder'' (isotropic cylinder
 configuration), ``laycyl'' (layered cylinder configuration) and ``ellipse'' (tilted ellipse configuration).
 The first one corresponds to the original work <DOI:10.1017/jfm.2016.838>, while the second two were
-in addition considered in the improved publication <arXiv:1812.09401>. The switching between the presets
+in addition considered in <arXiv:1812.09401>. The switching between the presets
 are implemented using the macro ``geomPreset'' as
-\begin{lstlisting}[numbers=left,firstnumber=48]
-macro geomPreset()cylinder// EOM
-real thetas  = 0.25;
+\begin{lstlisting}[numbers=left,firstnumber=47]
+macro geomPreset()rctcav// EOM                                                                
+real wdth = 0.5;
+real dpth = 0.5;
 \end{lstlisting}
+followed by the needed geometrical parameters.
 Note that there can be no white space between name defined by the macro and end-of-macro (comment symbols
 ``//''). The geometry generation relies on use of macros and IFMACRO statement, introduced in relatively
-recent FreeFEM++ version, 3.51 and above.
-
-Assertion is carried out to ensure that interface is not slicing the upper structure (line 81).
-Additionally, the classical permeability problem of the interior is defined and solved in lines 86--116 for
-getting appropriate boundary conditions for the interface cell (see main paper), the results are saved in
+recent FreeFEM++ version, 3.51 and above. More examples of geometry definition can be found in
+example file ``examples\_geomDef.edp''. The convention of all geometries is that the upper most solid
+point has coordinate $y = 0$. For structures, where the upper surface has planar component, it is possible
+to set interface coordinate to $y_i = 0$. For curved surfaces it is not possible do to practical reasons.
+The zero interface location is indicated with the macro
+\begin{lstlisting}[numbers=left,firstnumber=60]
+macro itfFlag()zero// EOM // Interface flag, "above" or "zero"                                
+\end{lstlisting}
+Assertion is carried out for proper definition of the interface location (lines 63--64).
+Additionally, for the porous set-ups, the classical interior permeability problem 
+is defined and solved in include file ``include\_interK.idp'' and
+used in the main solver, see lines 76--82.
+The solution is later used for
+getting appropriate boundary conditions for the interface cell 
+see <DOI:10.1017/jfm.2016.838>), the results are stored in
 separate finite element functions.
 
 The result of the simulation script is tensor fields at the full interface cell. The plane average result is
-outputted in text files, while resulting boundary condition coefficients are outputted to the console.
+outputted in text files. The fields are post-processed according to <DOI:10.1017/jfm.2016.838>
+and <arXiv:1812.09401>; resulting boundary condition coefficients are outputted to the console and
+saved to text files.
 
+\newpage
 \subsection{Variational formulation}
 
 The developed software solve coupled systems of Stoke's equations. By fixing indices $k,l$, we set $u_i^{K^{\pm}} = K^{\pm}_{ik}$, $u_i^{L^{\pm}} = L^{\pm}_{ikl}$, $p^{K^{\pm}} = A^{\pm}_{k}$ and $p^{L^{\pm}} = B^{\pm}_{kl}$. Then the governing equations take form (see paper<DOI:10.1017/jfm.2016.838> for all details)
@@ -202,14 +230,14 @@ u^{K^{-}}_{i,i} & = 0, & u^{L^{-}}_{i,i} & = 0, \\
 \left. u^{K^{-}}_{i} \right|_{\Gamma_C} & = 0, & \left. u^{L^{-}}_{i} \right|_{\Gamma_C} & = 0.
 \end{align}
 
-Structure of both set of equation systems is exactly the same, the only difference lies in volume forcing and stress boundary condition. Without loosing generality, we proceed by showing how to solve problems for $K$. In order to simplify notation, we skip the $K$ in equations. In order to solve these problems, we define test functions $\hat{u}_i^{\pm}$ and $\hat{p}^{\pm}$ and $\hat{\lambda}$ for velocity and pressure To arrive with weak formulation, we multiply equations with test function and employ integration by parts for fluid stresses, designated by $\Sigma^{\pm}_{ij} = - p^{\pm} \delta_{ij} + 2 \str{}{ij}{u^{\pm}} $, to obtain
+Structure of both set of equation systems is exactly the same, the only difference lies in volume forcing and stress boundary condition. Without loosing generality, we proceed by showing how to solve problems for $K$. We also do not implement the forcing directions for the $L$ problem which are zero by construction. In order to simplify notation, we skip the $K$ in equations. To solve these problems, we define test functions $\hat{u}_i^{\pm}$ and $\hat{p}^{\pm}$ for velocity and pressure. To arrive with weak formulation, we multiply equations with test function and employ integration by parts for fluid stresses, designated by $\Sigma^{\pm}_{ij} = - p^{\pm} \delta_{ij} + 2 \str{}{ij}{u^{\pm}} $, to obtain
 \begin{align}
 - \int_{\Omega} \Sigma^{+}_{ij} \hat{u}^{+}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{+}_{ij} n_j \hat{u}^{+}_{i} \,\mathit{dS} & = 0, \\
 \int_{\Omega} u^{{+}}_{i,i} \hat{p}^{+} \,\mathit{d\Omega} & = 0, \\
 - \int_{\Omega} \Sigma^{-}_{ij} \hat{u}^{-}_{i,j} \,\mathit{d\Omega} + \int_{\pd \Omega} \Sigma^{-}_{ij} n_j \hat{u}^{-}_{i} \,\mathit{dS} & = -\int_{\Omega} \delta_{ik} \hat{u}^{-}_{i} \,\mathit{d\Omega},  \\
 \int_{\Omega} u^{{-}}_{i,i} \hat{p}^{-} \,\mathit{d\Omega} & = 0,
 \end{align}
-for governing equations. This weak formulation is implemented using problem statements (lines 153--159 and 189--195). The surface
+for governing equations. This weak formulation is implemented using problem statements (lines 113--124 and 161--166). The surface
 forcing for the slip problem is enforced using surface integral on the interior boundary.
 
 \section{Solver for led driven cavity flow over porous medium}
@@ -234,10 +262,19 @@ The Darcy flow in the interior is expressed using the Darcy law with constant is
 \begin{equation}
 \tilde{u}_i = - K_{drc} \frac{\tilde{p}_{,i}}{\ord} .
 \end{equation}
-For the final remark, we have observed that
-%a special care one has to devote to the 
-construction of Lagrange multipliers is different. Before we saw that transpose operation was always sufficient (and required) for accurate solution. However, in this case, one has to explicitly define that forcing from velocity boundary condition acts only on velocities (and not on derivatives of velocity or pore pressure), while pressure boundary condition for pore pressure equation acts only as forcing in the pore pressure equation.
-Otherwise, the weak form and solver is constructed exactly as described in the previous section.
-
+The weak form for Stokes equations are obtained as explained in the
+previous section, while for the Darcy region the weak for is obtained
+as for a standard Poisson equation. The boundary conditions at the
+coupled interface are ensured by help of Lagrange multipliers, i.e.,
+additional test function $\hat{\lambda}$ is introduced and
+boundary conditions are multiplied with the function and integrated
+over the surface. The feedback to governing equations has been empirically
+determined. The forcing term from boundary conditions of velocity acts
+only on velocities (and not on derivatives
+of velocity or pore pressure), while forcing from pressure boundary
+condition for pore
+pressure equation acts only in the pore pressure equation.
+We have also empirically determined the resolution for Langrange multiplier
+space and the finite element order, see the main simulation file.
 
 \end{document}

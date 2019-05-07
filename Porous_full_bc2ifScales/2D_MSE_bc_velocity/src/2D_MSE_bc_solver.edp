@@ -39,7 +39,7 @@ verbosity = 0;
 int n = 10, nI = 4, nS = 6;
 
 // Switch between "porous" or "textured" surface, and defining pre-sets (with needed parameters,
-// check examples_geomDef.edp for examples
+// check examples_geomDef.edp for more examples
 // Currently implemented presets:
 //    porous:   cylinder, laycyl, ellipse
 //    textured: rctcav, tricav
@@ -57,7 +57,7 @@ real ymax = Nstr;
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
 real yi = 0.0;
-macro itfFlag()zero// EOF // Interface flag, "above" or "zero"
+macro itfFlag()zero// EOM // Interface flag, "above" or "zero"
 
 // Check that we have reasonable interface locations (producing not too skewed meshes)
 IFMACRO(itfFlag,above) assert(yi>=0.01/(n*nI)); ENDIFMACRO
