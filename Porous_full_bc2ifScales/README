@@ -44,12 +44,16 @@ structures through use of macros. The length of the interface cell can be
 easily modified to include different number of structures.
 
 The module 2D_MSE_bc_velocity contains
-src/2D_MSE_bc_solver.edp         -- script to solve for BC coefficients tensor
-src/2D_MSE_bc_geom.idp           -- additional routines for easy geometry
-                                    definition
-src/2D_MSE_bc_proc.idp           -- post-processing routines
+src/2D_MSE_bc_solver.edp         -- script to solve for BC coefficient tensors
+                                    and vectors
 src/2D_MSE_solver.edp            -- script to solve a Cavity problem with
                                     developed boundary conditions
+src/examples_geomDef.edp         -- examples of how to generate different
+                                    geometries
+src/include_geom.idp             -- additional routines for easy geometry
+                                    definition
+src/include_interK.idp           -- interior permeability solver
+src/include_postProc.idp         -- post-processing routines
 doc/2D_MSE_bc_velocity.pdf       -- explanation of variational formulation and
                                     script parameters
 
@@ -64,7 +68,7 @@ the selected module and, to get coefficients for BCs, execute in the command lin
 
 The results will be plotted on the screen as well as outputted to console. For
 headless execution (such as in a cluster) use
-# FreeFem++-nw -ne 2D_MSE_bc_Ksolver.edp
+# FreeFem++-nw -ne 2D_MSE_bc_solver.edp
 
 (Windows)
 
