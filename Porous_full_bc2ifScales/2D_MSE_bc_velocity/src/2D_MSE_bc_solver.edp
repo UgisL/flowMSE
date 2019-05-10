@@ -36,7 +36,7 @@ include "include_postProc.idp"
 verbosity = 0;
 
 // Mesh resolution (n = 1/ds), interface refinement (nI), structure refinement (nS)
-int n = 10, nI = 4, nS = 6;
+int n = 20, nI = 4, nS = 6;
 
 // Switch between "porous" or "textured" surface, and defining pre-sets (with needed parameters,
 // check examples_geomDef.edp for more examples
@@ -56,8 +56,8 @@ real ymin;
 real ymax = Nstr;
 // Define location of the interface (0 = tip of the upper structure)
 // Positive values - rising the interface
-real yi = 0.0;
-macro itfFlag()zero// EOM // Interface flag, "above" or "zero"
+real yi = 0.3;
+macro itfFlag()above// EOM // Interface flag, "above" or "zero"
 
 // Check that we have reasonable interface locations (producing not too skewed meshes)
 IFMACRO(itfFlag,above) assert(yi>=0.01/(n*nI)); ENDIFMACRO
@@ -166,10 +166,11 @@ problem stokesLc([u,v,p],[uuc,vvc,ppc],solver=sparsesolver) =
     + on(4,5,u=0,v=0);
 
 // Solve the slip problem, do the post-processing
-real itfL, tldM, itfM, tildeF2, vecF2;
+real itfL, itfLs, tldM, itfM, tildeF2, vecF2;
 real[int] chckZero(2);
 stokesLc; uL[] = u[];
 volAvg(ymax-1,ymax,Nsamp,ThC,u,avgVu) itfL        = avgVu;
+itfLs = int1d(ThC,8)( u );
 volAvg(ymax-1,ymax,Nsamp,ThC,v,avgVv) chckZero(0) = avgVv;
 volAvgI(ymax-1,ymax,Nsamp,ThC,p,avgVpTop)
 IFMACRO(Type,porous)   volAvgI(ymin,ymin+1,Nsamp,ThC,p,avgVpBot) ENDIFMACRO
@@ -192,7 +193,7 @@ cout << " vecF1*l/mu = " << vecF1 << endl;
 cout << " Average divergence = " << avgDiv << endl << endl;
 
 cout << " ---------------- Interface slip" << endl;
-cout << " itfL/l = " << itfL << endl;
+cout << " itfL/l = " << itfL << " (at surface " << itfLs << ")" << endl;
 cout << " itfM/l = " << itfM << " (tldM/l^2 = " << tldM << ")"<< endl;
 cout << " tildeF2/mu = " << tildeF2 << endl;
 cout << " vecF2*l/mu = " << vecF2 << endl;
