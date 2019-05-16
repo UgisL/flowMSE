@@ -24,19 +24,19 @@
 // Isotropic cylinder pre-set, expects real "thetas" (solid vf) to be defined
 macro Type()porous// EOM
 macro geomPreset()cylinder// EOM 
-real thetas  = 0.15;
+real thetas  = 0.25;  // As used in the porous section of <arXiv:1812.09401>
 thetas = 0.19634954084936207; // Carraro 2013
 yi = 0.25; // Interface location according to Carraro 2013
 
 // Layered isotropic cylinder pre-set, expects reals "thetas" and "thetas0" (solid vf at
-// interior and interface) to be defined
+// interior and interface) to be defined, as tested in <arXiv:1812.09401>.
 macro Type()porous// EOM
 macro geomPreset()laycyl// EOM
 real thetas  = 0.05309292;
 real thetas0 = 0.19634954;
 
 // Tilted ellipse pre-set, expects real "thetas" (solid vf), "ar" (aspect ratio > 1.0)
-// and "ang" (turn angle) to be defined
+// and "ang" (turn angle) to be defined, as tested in <arXiv:1812.09401>.
 macro Type()porous// EOM
 macro geomPreset()ellipse// EOM
 real thetas  = 0.21576872577655; // Svf according to Carraro 2013
@@ -49,13 +49,14 @@ yi = 0.21317839280450163; // Interface location according to Carraro 2013
 
 // Texture geometries ----------------------------------------------------------------------------------------
 // Rectangular cavity pre-set, expects reals "wdth" (width of the cavity) and "dpth" (depth of thecavity)
-// to be defined.
+// to be defined. As tested in <arXiv:1812.09401>.
 macro Type()textured// EOM
 macro geomPreset()rctcav// EOM
 real wdth = 0.5;
 real dpth = 0.5;
 
 // Triangular cavity pre-set (sharp-tip), expects real "dpth" (depth of the cavity). Width is always one.
+// As tested in <arXiv:1812.09401>, but not reported in great details.
 macro Type()textured// EOM
 macro geomPreset()tricav// EOM
 real dpth = 0.5*sqrt(2); // regular triangles
